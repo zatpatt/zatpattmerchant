@@ -1,596 +1,866 @@
 // src/pages/EarningsPage.jsx
-import React, { useState, useEffect} from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
 } from "recharts";
-import { Download, ArrowUp, ArrowDown, ArrowLeft } from "lucide-react";
+import { Download, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-// Sample data
-const summaryData = [
-  { title: "Today's Earnings", amount: 1240, trend: "up" },
-  { title: "This Week's Earnings", amount: 8450, trend: "up" },
-  { title: "This Month's Earnings", amount: 32500, trend: "down" },
-  { title: "Pending Payouts", amount: 2800, trend: "up" },
-  { title: "Lifetime Earnings", amount: 245000, trend: "up" },
-];
-
-const lineData = [
-  { day: "Mon", earnings: 1000 },
-  { day: "Tue", earnings: 1500 },
-  { day: "Wed", earnings: 1200 },
-  { day: "Thu", earnings: 1700 },
-  { day: "Fri", earnings: 900 },
-  { day: "Sat", earnings: 2000 },
-  { day: "Sun", earnings: 1600 },
-];
-
-const barData = [
-  { week: "Week 1", earnings: 4500 },
-  { week: "Week 2", earnings: 5200 },
-  { week: "Week 3", earnings: 6000 },
-  { week: "Week 4", earnings: 7500 },
-];
-
-const pieData = [
-  { name: "Grocery", value: 4000 },
-  { name: "Snacks", value: 3000 },
-  { name: "Dairy", value: 2000 },
-  { name: "Beverages", value: 1500 },
-];
-
-// Dummy Marketing data
-const couponData = [
-  { name: "Discount 10%", usage: 120 },
-  { name: "Discount 20%", usage: 80 },
-  { name: "Free Delivery", usage: 45 },
-];
-
-const revenueData = [
-  { name: "Promo 1", revenue: 5000 },
-  { name: "Promo 2", revenue: 3200 },
-  { name: "Promo 3", revenue: 2100 },
-];
-
-const referralData = [
-  { name: "User A", referred: 5 },
-  { name: "User B", referred: 3 },
-  { name: "User C", referred: 2 },
-];
-
-// Analytics data
-const salesSummary = [
-  { title: "Today", value: 1240, trend: "up" },
-  { title: "This Week", value: 8450, trend: "up" },
-  { title: "This Month", value: 32500, trend: "down" },
-  { title: "Lifetime", value: 245000, trend: "up" },
-];
-
-const revenueTrend = [
-  { day: "Mon", revenue: 1000 },
-  { day: "Tue", revenue: 1500 },
-  { day: "Wed", revenue: 1200 },
-  { day: "Thu", revenue: 1700 },
-  { day: "Fri", revenue: 900 },
-  { day: "Sat", revenue: 2000 },
-  { day: "Sun", revenue: 1600 },
-];
-
-const ordersTrend = [
-  { week: "Week 1", orders: 45 },
-  { week: "Week 2", orders: 52 },
-  { week: "Week 3", orders: 60 },
-  { week: "Week 4", orders: 75 },
-];
-
-const categoryDistribution = [
-  { name: "Grocery", value: 4000 },
-  { name: "Snacks", value: 3000 },
-  { name: "Dairy", value: 2000 },
-  { name: "Beverages", value: 1500 },
-];
-
-const customerDistribution = [
-  { name: "Repeat", value: 60 },
-  { name: "New", value: 40 },
-];
+/**
+ * EarningsPage.jsx
+ * - All analytics are derived live from localStorage 'merchant_orders'
+ * - Payout requests stored in 'merchant_payout_requests'
+ * - Reports export CSV + print-as-PDF (new window)
+ *
+ * Note: Replace localStorage interactions with your backend API for production.
+ */
 
 const COLORS = ["#FF7F50", "#FFA500", "#FFD700", "#FFB347", "#4F46E5", "#3B82F6"];
 
-const transactionsSample = [
-  {
-    date: "10 Nov", id: "#ZYT123", amount: 250, commission: 25, net: 225, status: "Paid", mode: "UPI",
-    items: [{ name: "Milk", qty: 2, price: 50 }, { name: "Bread", qty: 1, price: 150 }]
-  },
-  {
-    date: "09 Nov", id: "#ZYT124", amount: 500, commission: 50, net: 450, status: "Pending", mode: "Bank Transfer",
-    items: [{ name: "Chips", qty: 5, price: 100 }]
-  },
-];
+function loadOrders() {
+  try {
+    return JSON.parse(localStorage.getItem("merchant_orders") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function savePayoutRequests(list) {
+  try {
+    localStorage.setItem("merchant_payout_requests", JSON.stringify(list));
+  } catch {}
+}
+
+function loadPayoutRequests() {
+  try {
+    return JSON.parse(localStorage.getItem("merchant_payout_requests") || "[]");
+  } catch {
+    return [];
+  }
+}
 
 export default function EarningsPage() {
-  const [activeTab, setActiveTab] = useState("overview");
-  const [transactions, setTransactions] = useState(transactionsSample);
-  const [filters, setFilters] = useState({ status: "All", mode: "All", dateRange: "All" });
-  const [sortKey, setSortKey] = useState(null);
-  const [expandedRows, setExpandedRows] = useState({});
-  // Marketing tab states
-const [dateRange, setDateRange] = useState("last7days");
-const [campaignType, setCampaignType] = useState("all");
-// Analytics tab states
-const [analyticsDateRange, setAnalyticsDateRange] = useState("This Week");
-const [analyticsCategoryFilter, setAnalyticsCategoryFilter] = useState("All");
-const [forecastRevenue, setForecastRevenue] = useState(0);
-useEffect(() => {
-  const avgRevenue = revenueTrend.reduce((sum, d) => sum + d.revenue, 0) / revenueTrend.length;
-  setForecastRevenue(Math.round(avgRevenue * 7));
-}, [revenueTrend]);
-
   const navigate = useNavigate();
 
-  const toggleRow = (id) => setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  // live orders
+  const [orders, setOrders] = useState(() => loadOrders());
+  // payout requests
+  const [payoutRequests, setPayoutRequests] = useState(() =>
+    loadPayoutRequests()
+  );
 
-  // Filter & sort transactions
-  const filteredTransactions = transactions
-    .filter(tx => (filters.status === "All" || tx.status === filters.status))
-    .filter(tx => (filters.mode === "All" || tx.mode === filters.mode));
+const [activeTab, setActiveTab] = useState("overview");
 
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    if (!sortKey) return 0;
-    if (sortKey === "amount") return b.amount - a.amount;
-    if (sortKey === "commission") return b.commission - a.commission;
-    if (sortKey === "recent") return new Date(b.date) - new Date(a.date);
-    return 0;
-  });
+  // Overview filters
+  const [overviewRange, setOverviewRange] = useState("Today"); // Today | This Week | This Month | Custom
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
-  // CSV download
-  const downloadCSV = () => {
-    const header = ["Date","Order ID","Amount","Commission","Net Received","Status","Payment Mode"];
-    const rows = sortedTransactions.map(tx => [tx.date, tx.id, tx.amount, tx.commission, tx.net, tx.status, tx.mode]);
-    const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download","earnings.csv");
-    link.click();
+  // History filters
+  const [historyStatus, setHistoryStatus] = useState("All"); // All | Paid | Pending
+  const [historySort, setHistorySort] = useState("date"); // date | amount
+
+  // Insights filters
+  const [insightsRange, setInsightsRange] = useState("Today"); // Today | This Week | This Month | Custom
+  const [insightsCustomDate, setInsightsCustomDate] = useState("");
+
+  // Marketing / reports states
+  const [reportRange, setReportRange] = useState("Today"); // for exports etc.
+
+  // Live update from storage (other tabs)
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "merchant_orders") {
+        setOrders(loadOrders());
+      }
+      if (e.key === "merchant_payout_requests") {
+        setPayoutRequests(loadPayoutRequests());
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // whenever orders change, recalc payout requests maybe (we don't auto-create requests)
+  useEffect(() => {
+    setOrders(loadOrders());
+  }, []);
+
+  // -----------------------
+  // Helper date utilities
+  // -----------------------
+  const startOfToday = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+  const startOfWeek = () => {
+    const d = new Date();
+    const day = d.getDay(); // 0 Sun .. 6 Sat
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // make Monday first
+    const m = new Date(d.setDate(diff));
+    m.setHours(0, 0, 0, 0);
+    return m;
+  };
+  const startOfMonth = () => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+  const inRange = (iso, from, to) => {
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    if (from && t < from.getTime()) return false;
+    if (to && t > to.getTime()) return false;
+    return true;
   };
 
+  // -----------------------
+  // Derived analytics
+  // -----------------------
+  // parse orders into normalized list
+  const normalizedOrders = useMemo(() => {
+    return (orders || []).map((o) => ({
+      ...o,
+      amount: Number(o.amount || 0),
+      placedAtISO: o.placedAt || o.timestamp || o.createdAt || new Date().toISOString(),
+      paidToMerchant: !!o.paidToMerchant, // boolean
+    }));
+  }, [orders]);
+
+  // utility to get totals for a chosen range string or custom date range
+  const computeRangeTotals = (range, fromCustom, toCustom) => {
+    let from = null;
+    let to = null;
+    const now = new Date();
+    if (range === "Today") {
+      from = startOfToday();
+      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
+    } else if (range === "This Week") {
+      from = startOfWeek();
+      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
+    } else if (range === "This Month") {
+      from = startOfMonth();
+      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
+    } else if (range === "Custom" && fromCustom && toCustom) {
+      from = new Date(fromCustom);
+      from.setHours(0, 0, 0, 0);
+      to = new Date(toCustom);
+      to.setHours(23, 59, 59, 999);
+    }
+    const list = normalizedOrders.filter((o) =>
+      inRange(o.placedAtISO, from, to)
+    );
+    const ordersCount = list.length;
+    const sales = list.reduce((s, x) => s + (x.amount || 0), 0);
+    const completed = list.filter(
+      (x) => String(x.status || "").toLowerCase() === "delivered" || String(x.status || "").toLowerCase() === "completed"
+    );
+    const completedRevenue = completed.reduce((s, x) => s + (x.amount || 0), 0);
+    const avgOrderValue = completed.length ? +(completedRevenue / completed.length).toFixed(2) : 0;
+    return { list, ordersCount, sales, completedRevenue, avgOrderValue };
+  };
+
+  const overviewTotals = useMemo(() => {
+    return computeRangeTotals(overviewRange, customFrom, customTo);
+  }, [overviewRange, customFrom, customTo, normalizedOrders]);
+
+  // pending payouts: sum of completed orders not yet paidToMerchant OR explicit flag
+  const pendingPayoutsAmount = useMemo(() => {
+    // prefer orders' paidToMerchant, fallback to saved payoutRequests
+    const incomplete = normalizedOrders.filter(
+      (o) =>
+        (String(o.status || "").toLowerCase() === "delivered" ||
+          String(o.status || "").toLowerCase() === "completed") &&
+        !o.paidToMerchant
+    );
+    const sum = incomplete.reduce((s, o) => s + (o.amount || 0), 0);
+    return sum;
+  }, [normalizedOrders]);
+
+  // lifetime / totals
+  const lifetime = useMemo(() => {
+    const totalOrders = normalizedOrders.length;
+    const totalSales = normalizedOrders.reduce((s, o) => s + (o.amount || 0), 0);
+    return { totalOrders, totalSales };
+  }, [normalizedOrders]);
+
+  // transactions for history => delivered/completed orders appear as transaction rows
+  const transactions = useMemo(() => {
+    return normalizedOrders
+      .filter((o) => {
+        const st = String(o.status || "").toLowerCase();
+        return st === "delivered" || st === "completed";
+      })
+      .map((o) => ({
+        date: o.placedAtISO,
+        id: o.id,
+        amount: o.amount,
+        paid: !!o.paidToMerchant,
+        paymentMode: o.payment || "Unknown",
+        items: o.items || [],
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [normalizedOrders]);
+
+  // history filtered/sorted
+  const historyRows = useMemo(() => {
+    let rows = transactions.slice();
+    if (historyStatus === "Paid") rows = rows.filter((r) => r.paid);
+    else if (historyStatus === "Pending") rows = rows.filter((r) => !r.paid);
+    if (historySort === "amount") rows = rows.sort((a, b) => b.amount - a.amount);
+    else rows = rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+    return rows;
+  }, [transactions, historyStatus, historySort]);
+
+  // insights: hourly 0-23 aggregation for selected range
+  const insightsHourly = useMemo(() => {
+    // produce array length 24 with orders counts
+    let from = null;
+    let to = null;
+    const now = new Date();
+    if (insightsRange === "Today") {
+      from = startOfToday();
+      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
+    } else if (insightsRange === "This Week") {
+      from = startOfWeek();
+      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
+    } else if (insightsRange === "This Month") {
+      from = startOfMonth();
+      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
+    } else if (insightsRange === "Custom" && insightsCustomDate) {
+      const d = new Date(insightsCustomDate);
+      from = new Date(d);
+      from.setHours(0, 0, 0, 0);
+      to = new Date(d);
+      to.setHours(23, 59, 59, 999);
+    } else {
+      // default to today
+      from = startOfToday();
+      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
+    }
+
+    // determine hourly bins across range — if range > 1 day we aggregate by 24-hour buckets across each day summed
+    const hours = Array.from({ length: 24 }).map((_, i) => ({ hour: `${i}`, orders: 0 }));
+
+    normalizedOrders.forEach((o) => {
+      const dt = new Date(o.placedAtISO);
+      if (dt >= from && dt <= to) {
+        const h = dt.getHours();
+        hours[h].orders += 1;
+      }
+    });
+
+    return hours;
+  }, [normalizedOrders, insightsRange, insightsCustomDate]);
+
+  // marketing derived metrics (lightweight)
+  const marketing = useMemo(() => {
+    const customers = {};
+    normalizedOrders.forEach((o) => {
+      if (!o.customer) return;
+      customers[o.customer] = (customers[o.customer] || 0) + 1;
+    });
+    const totalOrders = normalizedOrders.length;
+    const repeat = Object.values(customers).filter((c) => c > 1).length;
+    const uniqueCustomers = Object.keys(customers).length;
+    // coupon usage if orders have coupon field
+    const couponCounts = {};
+    normalizedOrders.forEach((o) => {
+      const cp = o.coupon || o.promo || null;
+      if (cp) couponCounts[cp] = (couponCounts[cp] || 0) + 1;
+    });
+    return {
+      totalOrders,
+      repeatCustomers: repeat,
+      uniqueCustomers,
+      couponCounts,
+    };
+  }, [normalizedOrders]);
+
+  // generate CSV for reports
+  const exportCSV = (rows, filename = "report.csv") => {
+    if (!rows || !rows.length) {
+      alert("No rows to export");
+      return;
+    }
+    const keys = Object.keys(rows[0]);
+    const csv = [keys.join(",")]
+      .concat(
+        rows.map((r) =>
+          keys
+            .map((k) =>
+              `"${String(r[k] === null || r[k] === undefined ? "" : r[k]).replace(/"/g, '""')}"`
+            )
+            .join(",")
+        )
+      )
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // generate printable PDF (opens new window for print)
+  const generatePDF = (title, htmlContent) => {
+    const w = window.open("", "_blank", "noopener,noreferrer");
+    if (!w) {
+      alert("Popup blocked — allow popups to generate PDF");
+      return;
+    }
+    w.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, Helvetica, sans-serif; padding: 20px; color:#111 }
+            h1 { color: #f97316 }
+            table { width:100%; border-collapse: collapse; margin-top:10px }
+            th, td { border:1px solid #ddd; padding:8px; text-align:left }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          ${htmlContent}
+        </body>
+      </html>
+    `);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 400);
+  };
+
+  // -----------------------
+  // Payout flow
+  // -----------------------
+  const requestPayout = (amount) => {
+  amount = Number(amount);
+
+  if (!amount || amount <= 0) {
+    alert("You cannot request a payout of ₹0. Please complete orders first.");
+    return;
+  }
+
+  const next = loadPayoutRequests();
+  const id = `P${Date.now()}`;
+  const req = {
+    id,
+    amount,
+    requestedAt: new Date().toISOString(),
+    status: "Pending",
+  };
+
+  next.unshift(req);
+  savePayoutRequests(next);
+  setPayoutRequests(next);
+
+  alert(`Payout requested for ₹${amount}. Status: Pending`);
+};
+
+
+  // Demo: admin approve first pending request
+  const adminApproveFirst = () => {
+    const all = loadPayoutRequests();
+    const idx = all.findIndex((r) => r.status === "Pending");
+    if (idx === -1) {
+      alert("No pending requests");
+      return;
+    }
+    all[idx].status = "Completed";
+    all[idx].processedAt = new Date().toISOString();
+    savePayoutRequests(all);
+    setPayoutRequests(all);
+    // mark orders as paidToMerchant true for demo (all completed orders)
+    const updatedOrders = normalizedOrders.map((o) =>
+      (String(o.status || "").toLowerCase() === "delivered" || String(o.status || "").toLowerCase() === "completed")
+        ? { ...o, paidToMerchant: true }
+        : o
+    );
+    try {
+      localStorage.setItem("merchant_orders", JSON.stringify(updatedOrders));
+      setOrders(updatedOrders);
+    } catch {}
+    alert("Admin approved payout (demo) — completed and marked delivered orders as paid.");
+  };
+
+  // -----------------------
+  // Exports helpers
+  // -----------------------
+  const exportOrdersCSV = (range = "Today") => {
+    const { list } = computeRangeTotals(range, customFrom, customTo);
+    if (!list.length) {
+      alert("No orders in selected range");
+      return;
+    }
+    const rows = list.map((o) => ({
+      id: o.id,
+      placedAt: o.placedAtISO,
+      status: o.status,
+      amount: o.amount,
+      customer: o.customer || "",
+      payment: o.payment || "",
+    }));
+    exportCSV(rows, `orders-${range.toLowerCase()}.csv`);
+  };
+
+  // -----------------------
+  // UI
+  // -----------------------
   return (
     <div className="min-h-screen bg-[#fff9f4]">
-      {/* Header */}
+      {/* Header: simplified (no merchant name or notifications) */}
       <div className="bg-gradient-to-r from-orange-500 to-amber-400 text-white p-4 flex items-center justify-between">
-        {/* White circle back button */}
         <button
-  className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black"
-  onClick={() => navigate(-1)}
->
-  <ArrowLeft size={20} />
-</button>
-        <h1 className="text-lg font-bold">Merchant Earnings</h1>
-        <div>
-          <span className="mr-3">👤 Merchant Name</span>
-          <span>🔔 2</span>
-        </div>
+          className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h1 className="text-lg font-bold">Earnings & Reports</h1>
+        <div className="opacity-80 text-sm">Overview • Payouts • Reports</div>
       </div>
 
-      <div className="p-5">
-        {/* Tabs */}
-        <div className="flex space-x-3 mb-5 flex-wrap">
-          {["overview", "payouts", "history", "insights", "marketing", "reports"].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-2xl font-semibold ${
-                activeTab === tab ? "bg-gradient-to-r from-orange-500 to-amber-400 text-white" : "bg-white text-gray-700 shadow"
-              }`}
-            >
-              {tab === "overview" && "Overview 💰"}
-              {tab === "payouts" && "Payouts 🏦"}
-              {tab === "history" && "History 🧾"}
-              {tab === "insights" && "Insights 📊"}
-              {tab === "marketing" && "Marketing 📣"}
-              {tab === "reports" && "Reports 📂"}
-            </button>
-          ))}
-        </div>
+      <div className="p-5 max-w-6xl mx-auto space-y-6">
+       {/* Tabs */}
+<div className="flex flex-wrap gap-2 mb-5">
+  {["overview", "payouts", "history", "insights", "marketing", "reports"].map((tab) => (
+    <button
+      key={tab}
+      onClick={() => setActiveTab(tab)}
+      className={`
+        px-4 py-2 rounded-2xl font-semibold mr-1 mb-2
+        ${activeTab === tab
+          ? "bg-orange-500 text-white shadow-md scale-95"
+          : "bg-white text-gray-700 shadow"
+        }
+      `}
+    >
+      {tab === "overview" && "Overview 💰"}
+      {tab === "payouts" && "Payouts 🏦"}
+      {tab === "history" && "History 🧾"}
+      {tab === "insights" && "Insights 📊"}
+      {tab === "marketing" && "Marketing 📣"}
+      {tab === "reports" && "Reports 📂"}
+    </button>
+  ))}
+</div>
 
-{/* Overview (Analytics Content) */}
-{activeTab === "overview" && (
-  <div className="min-h-screen bg-[#fff9f4] space-y-6">
-    {/* Filters */}
-    <div className="flex items-center space-x-3">
-      <select
-        value={analyticsDateRange}
-        onChange={(e) => setAnalyticsDateRange(e.target.value)}
-        className="p-2 border rounded"
-      >
-        <option>Today</option>
-        <option>This Week</option>
-        <option>This Month</option>
-        <option>Custom</option>
-      </select>
-      <select
-        value={analyticsCategoryFilter}
-        onChange={(e) => setAnalyticsCategoryFilter(e.target.value)}
-        className="p-2 border rounded"
-      >
-        <option>All</option>
-        <option>Grocery</option>
-        <option>Snacks</option>
-        <option>Dairy</option>
-        <option>Beverages</option>
-      </select>
-      <button
-        onClick={downloadCSV}
-        className="ml-auto flex items-center px-3 py-2 bg-orange-500 text-white rounded-xl"
-      >
-        <Download size={16} className="mr-1" /> Export CSV
-      </button>
-    </div>
+        {/* ====== Overview (default visible) ====== */}
+        <section id="section-overview" className={`${activeTab === "overview" ? "" : "hidden"}`}>
+          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-lg font-semibold">Overview</h3>
 
-    {/* Sales Summary Cards */}
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      {salesSummary.map((s) => (
-        <div key={s.title} className="bg-white p-4 rounded-2xl shadow flex flex-col">
-          <p className="text-gray-500">{s.title}</p>
-          <div className="flex items-center mt-1">
-            <span className="text-xl font-bold">₹{s.value}</span>
-            {s.trend === "up" ? (
-              <ArrowUp className="text-green-500 ml-2" />
-            ) : (
-              <ArrowDown className="text-red-500 ml-2" />
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-
-    {/* Charts */}
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="bg-white p-4 rounded-2xl shadow">
-        <h3 className="font-semibold mb-2">Revenue Trend</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={revenueTrend}>
-            <XAxis dataKey="day" />
-            <YAxis />
-            <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="revenue"
-              stroke="#FFA500"
-              strokeWidth={2}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="bg-white p-4 rounded-2xl shadow">
-        <h3 className="font-semibold mb-2">Orders Trend</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={ordersTrend}>
-            <XAxis dataKey="week" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="orders" fill="#FF7F50" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="bg-white p-4 rounded-2xl shadow">
-        <h3 className="font-semibold mb-2">Category Distribution</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <PieChart>
-            <Pie
-              data={categoryDistribution}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={60}
-              label
-            >
-              {categoryDistribution.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={COLORS[index % COLORS.length]}
-                />
-              ))}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-
-    {/* Forecast */}
-    <div className="bg-white p-4 rounded-2xl shadow flex justify-between items-center">
-      <h3 className="font-semibold">Forecast: Next Week Revenue</h3>
-      <span className="text-orange-500 font-bold">₹{forecastRevenue}</span>
-    </div>
-
-    {/* Comparisons */}
-    <div className="bg-white p-4 rounded-2xl shadow space-y-1">
-      <h3 className="font-semibold mb-2">Comparisons</h3>
-      <p>
-        Week-over-Week Growth: <span className="text-green-500">+12%</span>
-      </p>
-      <p>
-        Month-over-Month Growth: <span className="text-red-500">-5%</span>
-      </p>
-    </div>
-
-    {/* Customer Analytics */}
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold">Customer Analytics</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white p-4 rounded-2xl shadow">
-          <h3 className="font-semibold mb-2">Repeat vs New Customers</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={customerDistribution}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={60}
-                label
+              <select
+                value={overviewRange}
+                onChange={(e) => setOverviewRange(e.target.value)}
+                className="p-2 border rounded"
               >
-                {customerDistribution.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={COLORS[index % COLORS.length]}
+                <option>Today</option>
+                <option>This Week</option>
+                <option>This Month</option>
+                <option>Custom</option>
+              </select>
+
+              {overviewRange === "Custom" && (
+                <>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="p-2 border rounded"
                   />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+                  <input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="p-2 border rounded"
+                  />
+                </>
+              )}
 
-        <div className="bg-white p-4 rounded-2xl shadow">
-          <h3 className="font-semibold mb-2">Top Customers</h3>
-          <ul className="text-gray-700 space-y-1">
-            <li>John Doe - ₹2,500</li>
-            <li>Jane Smith - ₹1,800</li>
-            <li>Ravi Kumar - ₹1,500</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+              <button
+                onClick={() => exportOrdersCSV(overviewRange)}
+                className="ml-auto flex items-center px-3 py-2 bg-orange-500 text-white rounded-xl"
+              >
+                <Download size={16} className="mr-1" /> Export CSV
+              </button>
+            </div>
 
-        {/* Payouts Tab */}
-        {activeTab === "payouts" && (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-2xl shadow flex flex-col space-y-2">
-              <h3 className="font-semibold">Payout & Commission Breakdown</h3>
-              <p>Commission Rate: 10%</p>
-              <p>Platform Fee: ₹50 per payout</p>
-              <p>Net Payable: ₹2,800</p>
-              <p>Next Payout Date: 12 Nov</p>
-              <p>Payment Method: Bank Transfer</p>
-              <div className="flex space-x-3 mt-2">
-                <button className="bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold">💸 Request Payout</button>
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">Pending</span>
-                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">Completed</span>
+            {/* summary cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-orange-50 p-4 rounded-2xl">
+                <div className="text-sm text-gray-500">Orders</div>
+                <div className="text-2xl font-bold">{overviewTotals.ordersCount}</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-2xl">
+                <div className="text-sm text-gray-500">Sales</div>
+                <div className="text-2xl font-bold">₹{overviewTotals.sales}</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-2xl">
+                <div className="text-sm text-gray-500">Completed Revenue</div>
+                <div className="text-2xl font-bold">₹{overviewTotals.completedRevenue}</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-2xl">
+                <div className="text-sm text-gray-500">Avg Order Value</div>
+                <div className="text-2xl font-bold">₹{overviewTotals.avgOrderValue}</div>
+              </div>
+            </div>
+
+            {/* charts row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-2xl shadow">
+                <h4 className="font-semibold mb-2">Revenue Trend</h4>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart
+                    data={(() => {
+                      // build 7-day trend ending today for "This Week", month for "This Month", else show last 7 days
+                      const now = new Date();
+                      const days = [];
+                      const daysBack = overviewRange === "This Month" ? 30 : 7;
+                      for (let i = daysBack - 1; i >= 0; i--) {
+                        const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
+                        const label = `${d.getDate()}/${d.getMonth() + 1}`;
+                        const dayStart = new Date(d); dayStart.setHours(0,0,0,0);
+                        const dayEnd = new Date(d); dayEnd.setHours(23,59,59,999);
+                        const total = normalizedOrders
+                          .filter((o) => {
+                            const t = new Date(o.placedAtISO).getTime();
+                            return t >= dayStart.getTime() && t <= dayEnd.getTime();
+                          })
+                          .reduce((s, x) => s + (x.amount || 0), 0);
+                        days.push({ date: label, earnings: total });
+                      }
+                      return days;
+                    })()}
+                  >
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="earnings" stroke="#f97316" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl shadow">
+                <h4 className="font-semibold mb-2">Orders Trend (7-day)</h4>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={(() => {
+                    const now = new Date();
+                    const days = [];
+                    for (let i = 6; i >= 0; i--) {
+                      const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
+                      const label = `${d.getDate()}/${d.getMonth() + 1}`;
+                      const dayStart = new Date(d); dayStart.setHours(0,0,0,0);
+                      const dayEnd = new Date(d); dayEnd.setHours(23,59,59,999);
+                      const total = normalizedOrders.filter((o) => {
+                        const t = new Date(o.placedAtISO).getTime();
+                        return t >= dayStart.getTime() && t <= dayEnd.getTime();
+                      }).length;
+                      days.push({ day: label, orders: total });
+                    }
+                    return days;
+                  })()}>
+                    <XAxis dataKey="day" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="orders" fill="#FF7F50" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl shadow">
+                <h4 className="font-semibold mb-2">Customer Distribution</h4>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Repeat", value: marketing.repeatCustomers || 0 },
+                        { name: "Unique", value: marketing.uniqueCustomers || 0 },
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={60}
+                      label
+                    >
+                      {[{},{ }].map((_, idx) => (
+                        <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* History Tab */}
-        {activeTab === "history" && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap space-x-3 mb-2 items-center">
+        {/* ====== Payouts ====== */}
+       <section id="section-payouts" className={`${activeTab === "payouts" ? "" : "hidden"}`}>
+          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
+            <h3 className="text-lg font-semibold">Payouts</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-orange-50 p-4 rounded-2xl">
+                <div className="text-sm text-gray-500">Pending Payouts</div>
+                <div className="text-2xl font-bold">₹{pendingPayoutsAmount || 0}</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-2xl">
+                <div className="text-sm text-gray-500">Available for Request</div>
+                <div className="text-2xl font-bold">₹{pendingPayoutsAmount || 0}</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-2xl">
+                <div className="text-sm text-gray-500">Lifetime Sales</div>
+                <div className="text-2xl font-bold">₹{lifetime.totalSales}</div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 items-center">
+              <button
+  onClick={() => requestPayout(pendingPayoutsAmount)}
+  disabled={!pendingPayoutsAmount || pendingPayoutsAmount <= 0}
+  className={`px-4 py-2 rounded-xl text-white 
+    ${pendingPayoutsAmount > 0 ? "bg-orange-500" : "bg-gray-400 cursor-not-allowed"}`}
+>
+  Request Payout (₹{pendingPayoutsAmount || 0})
+</button>
+
+              <button
+                onClick={() => adminApproveFirst()}
+                className="px-4 py-2 bg-gray-200 rounded-xl"
+                title="Demo: simulate admin approval for testing"
+              >
+                Simulate Admin Approve (demo)
+              </button>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">Payout Requests</h4>
+              {payoutRequests.length === 0 ? (
+                <div className="text-gray-500">No payout requests yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {payoutRequests.map((r) => (
+                    <div key={r.id} className="flex justify-between items-center p-3 border rounded">
+                      <div>
+                        <div className="font-semibold">Request {r.id}</div>
+                        <div className="text-sm text-gray-600">₹{r.amount} • {new Date(r.requestedAt).toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className={`px-3 py-1 rounded-full text-sm ${r.status === "Pending" ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}`}>
+                          {r.status}
+                        </div>
+                        {r.status === "Completed" && r.processedAt && <div className="text-xs text-gray-500 mt-1">Processed: {new Date(r.processedAt).toLocaleString()}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ====== History ====== */}
+      <section id="section-history" className={`${activeTab === "history" ? "" : "hidden"}`}>
+          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-lg font-semibold">History</h3>
               <select
+                value={historyStatus}
+                onChange={(e) => setHistoryStatus(e.target.value)}
                 className="p-2 border rounded"
-                value={filters.status} onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
               >
                 <option>All</option>
                 <option>Paid</option>
                 <option>Pending</option>
               </select>
+
               <select
+                value={historySort}
+                onChange={(e) => setHistorySort(e.target.value)}
                 className="p-2 border rounded"
-                value={filters.mode} onChange={(e) => setFilters(prev => ({ ...prev, mode: e.target.value }))}
               >
-                <option>All</option>
-                <option>UPI</option>
-                <option>Bank Transfer</option>
+                <option value="date">Sort by: Date</option>
+                <option value="amount">Sort by: Amount</option>
               </select>
-              <select
-                className="p-2 border rounded"
-                value={filters.dateRange} onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+
+              <button
+                onClick={() => {
+                  if (!historyRows.length) { alert("No transactions to export"); return; }
+                  exportCSV(historyRows.map(r => ({
+                    date: r.date,
+                    id: r.id,
+                    amount: r.amount,
+                    paid: r.paid ? "Paid" : "Pending",
+                    paymentMode: r.paymentMode
+                  })), "transactions.csv");
+                }}
+                className="ml-auto px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"
               >
-                <option>All Dates</option>
-                <option>Today</option>
-                <option>This Week</option>
-                <option>This Month</option>
-              </select>
-              <select
-                className="p-2 border rounded"
-                value={sortKey || ""} onChange={(e) => setSortKey(e.target.value)}
-              >
-                <option value="">Sort By</option>
-                <option value="amount">Amount</option>
-                <option value="commission">Commission</option>
-                <option value="recent">Most Recent</option>
-              </select>
-              <button onClick={downloadCSV} className="ml-auto flex items-center px-3 py-2 bg-orange-500 text-white rounded-xl">
-                <Download size={16} className="mr-1" /> CSV
+                <Download size={16} /> Export
               </button>
             </div>
 
             <div className="overflow-x-auto bg-white p-4 rounded-2xl shadow">
               <table className="min-w-full table-auto">
-                <thead className="bg-gray-100">
+                <thead className="bg-gray-50">
                   <tr>
-                    {["Date", "Order ID", "Amount", "Commission", "Net Received", "Status", "Payment Mode"].map((col) => (
-                      <th key={col} className="py-2 px-4 text-left text-gray-600">{col}</th>
-                    ))}
+                    <th className="py-2 px-4 text-left">Date</th>
+                    <th className="py-2 px-4 text-left">Order ID</th>
+                    <th className="py-2 px-4 text-left">Amount</th>
+                    <th className="py-2 px-4 text-left">Status</th>
+                    <th className="py-2 px-4 text-left">Payment Mode</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedTransactions.map((tx, idx) => (
-                    <React.Fragment key={idx}>
-                      <tr onClick={() => toggleRow(tx.id)} className="border-b hover:bg-gray-50 cursor-pointer">
-                        <td className="py-2 px-4">{tx.date}</td>
-                        <td className="py-2 px-4">{tx.id}</td>
-                        <td className="py-2 px-4">₹{tx.amount}</td>
-                        <td className="py-2 px-4">₹{tx.commission}</td>
-                        <td className="py-2 px-4">₹{tx.net}</td>
-                        <td className="py-2 px-4">{tx.status === "Paid" ? "✅ Paid" : "🕒 Pending"}</td>
-                        <td className="py-2 px-4">{tx.mode}</td>
-                      </tr>
-                      {expandedRows[tx.id] && (
-                        <tr className="bg-gray-50">
-                          <td colSpan={7} className="p-3">
-                            <div className="space-y-1">
-                              <h4 className="font-semibold">Items:</h4>
-                              {tx.items.map((item, i) => (
-                                <p key={i} className="text-gray-700 text-sm">{item.name} x{item.qty} - ₹{item.price}</p>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                  {historyRows.map((tx) => (
+                    <tr key={tx.id} className="border-b hover:bg-gray-50">
+                      <td className="py-2 px-4">{new Date(tx.date).toLocaleString()}</td>
+                      <td className="py-2 px-4">{tx.id}</td>
+                      <td className="py-2 px-4">₹{tx.amount}</td>
+                      <td className="py-2 px-4">{tx.paid ? "✅ Paid" : "🕒 Pending"}</td>
+                      <td className="py-2 px-4">{tx.paymentMode}</td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* Insights Tab */}
-        {activeTab === "insights" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-4 rounded-2xl shadow">
-              <h3 className="font-semibold mb-2">Weekly Summary</h3>
-              <ul className="space-y-1 text-gray-700">
-                <li>📈 Earnings grew +12% this week</li>
-                <li>🛒 Most sales on weekends</li>
-                <li>💵 Average order value: ₹410</li>
-                <li>🏆 Top category: Beverages (₹1,500)</li>
-                <li>🔥 Highest earning day: Sunday</li>
-              </ul>
+        {/* ====== Insights ====== */}
+      <section id="section-insights " className={`${activeTab === "insights" ? "" : "hidden"}`}>
+          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
+           <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-lg font-semibold">Insights</h3>
+              <select value={insightsRange} onChange={(e) => setInsightsRange(e.target.value)} className="p-2 border rounded">
+                <option>Today</option>
+                <option>This Week</option>
+                <option>This Month</option>
+                <option>Custom</option>
+              </select>
+              {insightsRange === "Custom" && (
+                <input type="date" value={insightsCustomDate} onChange={(e)=>setInsightsCustomDate(e.target.value)} className="p-2 border rounded" />
+              )}
+              <button onClick={() => exportOrdersCSV(insightsRange)} className="ml-auto px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"><Download size={16} /> Export</button>
             </div>
-            <div className="bg-white p-4 rounded-2xl shadow">
-              <h3 className="font-semibold mb-2">Alerts & Notifications</h3>
-              <ul className="space-y-1 text-gray-700">
-                <li>🔔 ₹1,200 payout processed today</li>
-                <li>🕒 2 payouts pending approval</li>
-                <li>⚠️ Commission changed to 12% starting Dec</li>
-              </ul>
-            </div>
-          </div>
-        )}
 
-{/* Marketing Tab */}
-{activeTab === "marketing" && (
-  <div className="min-h-screen bg-[#fff9f4] p-5 space-y-6">
-    {/* Filters */}
-    <div className="flex gap-3 items-center mb-4">
-      <select
-        className="p-2 border rounded"
-        value={dateRange}
-        onChange={(e) => setDateRange(e.target.value)}
-      >
-        <option value="last7days">Last 7 Days</option>
-        <option value="last30days">Last 30 Days</option>
-        <option value="custom">Custom Range</option>
-      </select>
-      <select
-        className="p-2 border rounded"
-        value={campaignType}
-        onChange={(e) => setCampaignType(e.target.value)}
-      >
-        <option value="all">All Campaigns</option>
-        <option value="promo">Promotions</option>
-        <option value="coupon">Coupons</option>
-        <option value="referral">Referrals</option>
-      </select>
-      <button className="ml-auto flex items-center px-3 py-2 bg-orange-500 text-white rounded-xl">
-        <Download size={16} className="mr-1" /> Export CSV
-      </button>
-    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-2xl shadow">
+                <h4 className="font-semibold mb-2">Orders per Hour (0–23)</h4>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={insightsHourly.map(h => ({ hour: `${h.hour}:00`, orders: h.orders }))}>
+                    <XAxis dataKey="hour" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="orders" fill="#FF7F50" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
 
-    {/* Discount / Coupon Usage */}
-    <div className="bg-white p-5 rounded-2xl shadow">
-      <h3 className="font-semibold mb-3">💰 Coupon / Discount Usage</h3>
-      <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={couponData}>
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="usage" fill="#f97316" radius={[8, 8, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-
-    {/* Revenue from Promotions */}
-    <div className="bg-white p-5 rounded-2xl shadow">
-      <h3 className="font-semibold mb-3">📈 Revenue from Promotions</h3>
-      <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={revenueData}>
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="revenue" fill="#f97316" radius={[8, 8, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-
-    {/* Referral Program Metrics */}
-    <div className="bg-white p-5 rounded-2xl shadow">
-      <h3 className="font-semibold mb-3">👥 Top Referrers</h3>
-      <ul className="text-sm text-gray-700 space-y-1">
-        {referralData.map((r, idx) => (
-          <li key={idx}>
-            {r.name} — {r.referred} referrals
-          </li>
-        ))}
-      </ul>
-    </div>
-
-    {/* Top Campaigns Overview */}
-    <div className="bg-white p-5 rounded-2xl shadow">
-      <h3 className="font-semibold mb-3">🏆 Top Campaigns</h3>
-      <ul className="text-sm text-gray-700 space-y-1">
-        {revenueData.map((c, idx) => (
-          <li key={idx}>
-            {c.name} — ₹{c.revenue} revenue
-          </li>
-        ))}
-      </ul>
-    </div>
-  </div>
-)}
-
-        {/* Reports Tab */}
-        {activeTab === "reports" && (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-2xl shadow flex flex-col space-y-2">
-              <h3 className="font-semibold">Settlement & Bank Info</h3>
-              <p>Bank Name: HDFC Bank</p>
-              <p>Account Number: ****5678</p>
-              <p>IFSC / UPI ID: HDFC0001234 / merchant@upi</p>
-              <p>Settlement Schedule: Every Monday & Thursday 🔒</p>
-              <button className="mt-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold">Edit / Verify Bank</button>
-            </div>
-            <div className="flex space-x-3">
-              <button className="bg-white text-orange-500 border border-orange-500 px-4 py-2 rounded-xl flex items-center space-x-2">
-                <Download size={16} /> Export CSV
-              </button>
-              <button className="bg-white text-orange-500 border border-orange-500 px-4 py-2 rounded-xl flex items-center space-x-2">
-                <Download size={16} /> Generate PDF
-              </button>
+              <div className="bg-white p-4 rounded-2xl shadow">
+                <h4 className="font-semibold mb-2">Quick Insights</h4>
+                <ul className="text-gray-700 space-y-1">
+                  <li>Orders in range: {insightsHourly.reduce((s, h) => s + h.orders, 0)}</li>
+                  <li>Peak hour: {(() => {
+                    const peak = insightsHourly.reduce((p, c) => (c.orders > (p.orders||0) ? c : p), {orders:0});
+                    return peak && peak.orders ? `${peak.hour}:00 (${peak.orders})` : "—";
+                  })()}</li>
+                  <li>Average order value (delivered): ₹{(() => {
+                    const delivered = normalizedOrders.filter(o => (String(o.status||"").toLowerCase()==="delivered"||String(o.status||"").toLowerCase()==="completed") && inRange(o.placedAtISO, insightsRange==="Custom" && insightsCustomDate ? new Date(new Date(insightsCustomDate).setHours(0,0,0,0)) : insightsRange==="Today" ? startOfToday() : insightsRange==="ThisWeek" ? startOfWeek() : startOfMonth(), new Date()) );
+                    if (!delivered.length) return "—";
+                    const sum = delivered.reduce((s,x)=>s+(x.amount||0),0);
+                    return Math.round(sum/delivered.length);
+                  })()}</li>
+                </ul>
+              </div>
             </div>
           </div>
-        )}
+        </section>
+
+        {/* ====== Marketing ====== */}
+        <section id="section-marketing " className={`${activeTab === "marketing" ? "" : "hidden"}`}>
+          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
+            <h3 className="text-lg font-semibold">Marketing</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-orange-50 rounded-2xl">
+                <div className="text-sm text-gray-600">Total Orders</div>
+                <div className="text-2xl font-bold">{marketing.totalOrders}</div>
+              </div>
+              <div className="p-4 bg-orange-50 rounded-2xl">
+                <div className="text-sm text-gray-600">Unique Customers</div>
+                <div className="text-2xl font-bold">{marketing.uniqueCustomers}</div>
+              </div>
+              <div className="p-4 bg-orange-50 rounded-2xl">
+                <div className="text-sm text-gray-600">Repeat Customers</div>
+                <div className="text-2xl font-bold">{marketing.repeatCustomers}</div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold">Coupon / Promo Usage (derived)</h4>
+              {Object.keys(marketing.couponCounts).length === 0 ? (
+                <div className="text-gray-500">No coupon or promo usage data available in orders.</div>
+              ) : (
+                <ul className="space-y-1 text-gray-700">
+                  {Object.entries(marketing.couponCounts).map(([k, v]) => (
+                    <li key={k}>{k} — {v} uses</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ====== Reports ====== */}
+        <section id="section-reports " className={`${activeTab === "reports" ? "" : "hidden"}`}>
+          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
+            <h3 className="text-lg font-semibold">Reports</h3>
+
+           <div className="flex flex-wrap items-center gap-3">
+              <select value={reportRange} onChange={(e)=>setReportRange(e.target.value)} className="p-2 border rounded">
+                <option>Today</option>
+                <option>This Week</option>
+                <option>This Month</option>
+                <option>All Time</option>
+              </select>
+
+              <button onClick={() => {
+                // generate CSV of selected range
+                const range = reportRange === "All Time" ? "This Month" : reportRange;
+                const { list } = computeRangeTotals(reportRange, customFrom, customTo);
+                const rows = list.map(o => ({ id: o.id, date: o.placedAtISO, status: o.status, amount: o.amount, customer: o.customer || "" }));
+                exportCSV(rows, `orders-report-${reportRange.replace(/\s+/g,"-").toLowerCase()}.csv`);
+              }} className="px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"><Download size={16} /> Export CSV</button>
+
+              <button onClick={() => {
+                // generate a printable report
+                const { list } = computeRangeTotals(reportRange, customFrom, customTo);
+                const html = `<table><thead><tr><th>Order</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${list.map(o=>`<tr><td>${o.id}</td><td>${new Date(o.placedAtISO).toLocaleString()}</td><td>₹${o.amount}</td><td>${o.status}</td></tr>`).join("")}</tbody></table>`;
+                generatePDF(`Orders report — ${reportRange}`, html);
+              }} className="px-3 py-2 bg-white border rounded-xl">Generate PDF</button>
+            </div>
+
+            <div className="text-sm text-gray-600">Tip: Use exports to send reports to admin or accounting.</div>
+          </div>
+        </section>
       </div>
     </div>
   );

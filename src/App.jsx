@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "./context/LanguageContext";
 
 import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 import OtpPage from "./pages/OtpPage";
 import DashboardPage from "./pages/DashboardPage";
 import OrdersPage from "./pages/OrdersPage";
@@ -12,12 +13,14 @@ import RatingsPage from "./pages/RatingsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ProfilePage from "./pages/ProfilePage";
 import MarketingPage from "./pages/MarketingPage";
+import OrderDetailsPage from "./pages/OrderDetailsPage";
 
 export default function App() {
   return (
     <LanguageProvider>
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route path="/otp" element={<OtpPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/orders" element={<OrdersPage />} />
@@ -27,6 +30,7 @@ export default function App() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/marketing" element={<MarketingPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/order/:id" element={<OrderDetailsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </LanguageProvider>

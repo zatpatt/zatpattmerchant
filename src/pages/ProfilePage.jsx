@@ -1,16 +1,30 @@
 // src/pages/ProfilePage.jsx
 import React, { useState, useEffect } from "react";
 import PageHeader from "../components/PageHeader";
-import { User, Phone, CreditCard, FileText, Mail, MapPin } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 /**
- * Merchant Profile Page
- * - Saves data to localStorage under key: merchant_profile
- * - Saves documents under merchant_profile.documents as data-urls (for demo)
+ * ProfilePage.jsx (updated)
+ *
+ * Changes applied:
+ * - Reads initial account details from signup storage: "merchantAccount" (preferred)
+ *   falls back to older "merchant_profile" or "merchantSignupData".
+ * - Registered phone number is read-only (comes from signup/login).
+ * - Merchant ID removed completely.
+ * - Online/Offline status is stored in "merchantOnlineStatus" in localStorage and kept in sync
+ *   so Dashboard and Profile read the same value.
+ * - Payment methods trimmed: only COD visible and enforced (cannot be turned off).
+ * - All other fields save to "merchant_profile" for backward compatibility.
+ * - Saves live to localStorage and listens to external changes (storage event).
+ *
+ * Paste-ready. Replace PageHeader import if your project uses a different header component.
  */
 
-const STORAGE_KEY = "merchant_profile";
+const PROFILE_KEY = "merchant_profile";
+const ACCOUNT_KEY = "merchantAccount"; // expected signup storage (option 1)
+const LOGIN_NUMBER_KEY = "merchantLoginNumber";
+const ONLINE_STATUS_KEY = "merchantOnlineStatus";
 
 function maskAccount(acc = "") {
   if (!acc) return "";
@@ -18,69 +32,81 @@ function maskAccount(acc = "") {
   return acc.length > 4 ? `**** **** **** ${last4}` : acc;
 }
 
-function smallBarChart(data = []) {
-  // returns max and scaled heights (used in markup)
-  const max = Math.max(...data.map((d) => d.value), 1);
-  return data.map((d) => ({ ...d, pct: Math.round((d.value / max) * 100) }));
-}
-
 export default function ProfilePage() {
   const navigate = useNavigate();
 
-  const [profile, setProfile] = useState(() => {
-  try {
-    const storedProfile = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
-      storeName: "",
-      address: "",
-      hours: "09:00 - 21:00",
-      contact: "",
-      email: "",
-      description: "",
-      logo: "",
-      ownerName: "",
-      merchantId: `M-${Math.floor(1000 + Math.random() * 9000)}`,
-      kycStatus: "Pending",
-      gst: "",
-      online: true,
-      deliveryRadius: 3,
-      etaMins: 30,
-      minOrder: 50,
-      paymentMethods: {
-        cod: true,
-        card: true,
-        upi: true,
-      },
-      performance: {
-        rating: 4.5,
-        weeklySales: [1200, 1500, 800, 1700, 2200, 3000, 2500],
-        completed: 1240,
-        cancellations: 12,
-      },
-      payout: {
-        bankName: "",
-        account: "",
-        upi: "",
-        verified: false,
-      },
-      documents: {
-        license: "",
+  // load initial stored account/profile
+  const loadInitialProfile = () => {
+    try {
+      // Preferred: merchantAccount from signup (option 1)
+      const acct = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null");
+      const stored = JSON.parse(localStorage.getItem(PROFILE_KEY) || "null");
+
+      // fallback keys some projects used previously
+      const signupFallback = JSON.parse(localStorage.getItem("merchantSignupData") || "null");
+      const profileFrom = acct || stored || signupFallback || {};
+
+      // phone from login (guaranteed source)
+      const loginNumber = localStorage.getItem(LOGIN_NUMBER_KEY) || profileFrom.contact || profileFrom.phone || "";
+
+      // normalize the returned object with safe defaults
+      return {
+        storeName: profileFrom.storeName || profileFrom.store || "",
+        address: profileFrom.address || "",
+        hours: profileFrom.hours || "09:00 - 21:00",
+        contact: loginNumber,
+        email: profileFrom.email || "",
+        description: profileFrom.description || "",
+        logo: profileFrom.logo || "",
+        ownerName: profileFrom.ownerName || "",
+        kycStatus: profileFrom.kycStatus || "Pending",
+        gst: profileFrom.gst || "",
+        online: (localStorage.getItem(ONLINE_STATUS_KEY) || (profileFrom.online === false ? "false" : "true")) === "true",
+        deliveryRadius: profileFrom.deliveryRadius ?? 3,
+        etaMins: profileFrom.etaMins ?? 30,
+        minOrder: profileFrom.minOrder ?? 50,
+        paymentMethods: {
+          cod: true, // enforce COD only
+        },
+        performance: profileFrom.performance || {
+          rating: 0,
+          weeklySales: [0, 0, 0, 0, 0, 0, 0],
+          completed: 0,
+          cancellations: 0,
+        },
+        payout: profileFrom.payout || { bankName: "", account: "", upi: "", verified: false },
+        documents: profileFrom.documents || {},
+      };
+    } catch (e) {
+      return {
+        storeName: "",
+        address: "",
+        hours: "09:00 - 21:00",
+        contact: localStorage.getItem(LOGIN_NUMBER_KEY) || "",
+        email: "",
+        description: "",
+        logo: "",
+        ownerName: "",
+        kycStatus: "Pending",
         gst: "",
-        idProof: "",
-      },
-    };
+        online: true,
+        deliveryRadius: 3,
+        etaMins: 30,
+        minOrder: 50,
+        paymentMethods: { cod: true },
+        performance: { rating: 0, weeklySales: [0, 0, 0, 0, 0, 0, 0], completed: 0, cancellations: 0 },
+        payout: { bankName: "", account: "", upi: "", verified: false },
+        documents: {},
+      };
+    }
+  };
 
-    // get the login number
-    const loginNumber = localStorage.getItem("merchantLoginNumber");
-    return {
-      ...storedProfile,
-      contact: storedProfile.contact || loginNumber || "",
-    };
-  } catch (e) {
-    return {};
-  }
-});
+  const [profile, setProfile] = useState(() => loadInitialProfile());
 
-  // derived
+  // keep local state onlineStatus for smooth toggling and sync with localStorage
+  const [online, setOnline] = useState(profile.online);
+
+  // compute completion score
   const completionScore = (() => {
     const required = [
       "storeName",
@@ -103,9 +129,48 @@ export default function ProfilePage() {
     return Math.round((filled / required.length) * 100);
   })();
 
+  // write profile changes to storage (and mirror merchantAccount for signup continuity)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    try {
+      // persist canonical profile
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+
+      // also update merchantAccount minimal fields if signup used that key
+      const minimalAcct = {
+        storeName: profile.storeName,
+        email: profile.email,
+        phone: profile.contact,
+      };
+      // keep merchantAccount in sync so other flows can read storeName/email from it
+      localStorage.setItem(ACCOUNT_KEY, JSON.stringify(minimalAcct));
+    } catch (e) {
+      // ignore storage errors
+    }
   }, [profile]);
+
+  // sync online status to localStorage and keep profile.online in sync
+  useEffect(() => {
+    try {
+      localStorage.setItem(ONLINE_STATUS_KEY, online ? "true" : "false");
+    } catch {}
+    setProfile((p) => ({ ...p, online }));
+  }, [online]);
+
+  // listen to storage events so dashboard/profile across tabs stay in sync
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (!e.key) return;
+      if (e.key === ONLINE_STATUS_KEY) {
+        setOnline(e.newValue === "true");
+      }
+      if (e.key === PROFILE_KEY || e.key === ACCOUNT_KEY || e.key === LOGIN_NUMBER_KEY) {
+        setProfile(loadInitialProfile());
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // small helpers
   const update = (path, value) => {
@@ -126,17 +191,19 @@ export default function ProfilePage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      update(`documents.${docKey}`, reader.result);
-      // if logo uploading
+      // Save image/data-url
       if (docKey === "logo") {
         update("logo", reader.result);
+      } else {
+        update(`documents.${docKey}`, reader.result);
       }
-      // auto set KYC if all docs present (demo)
+
+      // auto-verify demo KYC if all docs present
       setTimeout(() => {
         const docs = {
-          license: profile.documents.license || (docKey === "license" && reader.result),
-          gst: profile.documents.gst || (docKey === "gst" && reader.result),
-          idProof: profile.documents.idProof || (docKey === "idProof" && reader.result),
+          license: profile.documents?.license || (docKey === "license" && reader.result),
+          gst: profile.documents?.gst || (docKey === "gst" && reader.result),
+          idProof: profile.documents?.idProof || (docKey === "idProof" && reader.result),
         };
         if (docs.license && docs.gst && docs.idProof) {
           update("kycStatus", "Verified");
@@ -147,29 +214,43 @@ export default function ProfilePage() {
   };
 
   const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-    alert("Profile saved ✓");
+    try {
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+      // keep minimal merchantAccount in sync as well
+      localStorage.setItem(ACCOUNT_KEY, JSON.stringify({
+        storeName: profile.storeName,
+        email: profile.email,
+        phone: profile.contact
+      }));
+      alert("Profile saved ✓");
+    } catch {
+      alert("Unable to save (storage error)");
+    }
   };
 
   const handleBankVerify = () => {
-    // simulate verification
     update("payout.verified", true);
     alert("Bank details verified (demo)");
   };
 
-const weeklyChart = smallBarChart(
-  ((profile?.performance?.weeklySales) || []).map((v, i) => ({
-    label: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i] || `D${i + 1}`,
-    value: v
-  }))
-);
+  const weeklyChart = (() => {
+    const arr = (profile?.performance?.weeklySales) || [0,0,0,0,0,0,0];
+    const max = Math.max(...arr, 1);
+    return arr.map((v, i) => ({
+      label: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i] || `D${i+1}`,
+      pct: Math.round((v / max) * 100),
+    }));
+  })();
 
   const logout = () => {
-    // keep merchant_profile maybe, but clear auth keys
+    // clear auth token but keep profile data
     localStorage.removeItem("merchantAuth");
-    // redirect to login
     window.location.href = "/";
   };
+
+  // Prevent editing of phone (from signup/login). But allow storeName/email editing as requested.
+  // Payment methods: enforce COD only
+  // Merchant ID removed
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col">
@@ -225,6 +306,7 @@ const weeklyChart = smallBarChart(
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Store Name</span>
+              {/* storeName editable (coming from signup but allowed to edit here) */}
               <input value={profile.storeName} onChange={(e)=>update("storeName", e.target.value)} placeholder="Store name" className="mt-1 p-2 border rounded-xl" />
             </label>
 
@@ -239,12 +321,14 @@ const weeklyChart = smallBarChart(
             </label>
 
             <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Contact Number</span>
-              <input value={profile.contact} onChange={(e)=>update("contact", e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="10-digit number" className="mt-1 p-2 border rounded-xl" />
+              <span className="text-sm text-gray-600">Contact Number (read-only)</span>
+              {/* contact is read-only */}
+              <input value={profile.contact} readOnly className="mt-1 p-2 border rounded-xl bg-gray-50" />
             </label>
 
             <label className="flex flex-col md:col-span-2">
               <span className="text-sm text-gray-600">Email Address</span>
+              {/* email editable (comes from signup) */}
               <input value={profile.email} onChange={(e)=>update("email", e.target.value)} placeholder="store@example.com" className="mt-1 p-2 border rounded-xl" />
             </label>
 
@@ -273,14 +357,11 @@ const weeklyChart = smallBarChart(
             </label>
 
             <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Registered Phone</span>
-              <input value={profile.contact} onChange={(e)=>update("contact", e.target.value.replace(/\D/g,"").slice(0,10))} className="mt-1 p-2 border rounded-xl" />
+              <span className="text-sm text-gray-600">Registered Phone (read-only)</span>
+              <input value={profile.contact} readOnly className="mt-1 p-2 border rounded-xl bg-gray-50" />
             </label>
 
-            <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Merchant ID</span>
-              <input value={profile.merchantId} readOnly className="mt-1 p-2 border rounded-xl bg-gray-50" />
-            </label>
+            {/* Merchant ID removed (not shown) */}
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">GST / Business PAN (optional)</span>
@@ -298,8 +379,12 @@ const weeklyChart = smallBarChart(
                 <div className="text-sm text-gray-600">Online / Offline</div>
                 <div className="text-xs text-gray-500">Accept orders</div>
               </div>
-              <button onClick={()=>update("online", !profile.online)} className={`w-16 h-8 flex items-center rounded-full p-1 ${profile.online ? "bg-orange-400" : "bg-gray-300"}`}>
-                <div className={`bg-white w-6 h-6 rounded-full transform ${profile.online ? "translate-x-8" : "translate-x-0"}`} />
+              <button
+                onClick={() => setOnline((s) => !s)}
+                className={`w-16 h-8 flex items-center rounded-full p-1 ${online ? "bg-orange-400" : "bg-gray-300"}`}
+                title="Toggle online/offline"
+              >
+                <div className={`bg-white w-6 h-6 rounded-full transform ${online ? "translate-x-8" : "translate-x-0"}`} />
               </button>
             </div>
 
@@ -318,18 +403,14 @@ const weeklyChart = smallBarChart(
               <input type="number" value={profile.minOrder} onChange={(e)=>update("minOrder", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
             </label>
 
-            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center gap-2">
-                <input type="checkbox" checked={profile?.paymentMethods?.cod} onChange={(e)=>update("paymentMethods", {...profile.paymentMethods, cod: e.target.checked})} />
-                <span className="text-sm">Cash on Delivery</span>
+                <input type="checkbox" checked={true} readOnly />
+                <span className="text-sm">Cash on Delivery (always available)</span>
               </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" checked={profile?.paymentMethods?.card} onChange={(e)=>update("paymentMethods", {...profile.paymentMethods, card: e.target.checked})} />
-                <span className="text-sm">Card / POS</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" checked={profile?.paymentMethods?.upi} onChange={(e)=>update("paymentMethods", {...profile.paymentMethods, upi: e.target.checked})} />
-                <span className="text-sm">UPI</span>
+
+              <div className="text-sm text-gray-500">
+                Card / POS and UPI are not available currently.
               </div>
             </div>
           </div>
@@ -446,13 +527,6 @@ const weeklyChart = smallBarChart(
           </div>
         </section>
       </div>
-
-      </div>
+    </div>
   );
 }
-
-/* Small inline icons used so we don't strictly require new icon packages below.
-   If you already have lucide-react installed, you can replace these with proper imports.
-*/
-function WalletIcon(){ return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="stroke-current"><path d="M3 7h15a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M21 10v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> }
-function StarIcon(){ return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="stroke-current"><path d="M12 17.3L5.6 20l1.1-6.4L2 9.5l6.5-1L12 2.5l3.5 6 6.5 1-4.7 4.1L18.4 20z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/></svg> }
