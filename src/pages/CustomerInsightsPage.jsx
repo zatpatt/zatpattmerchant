@@ -1,3 +1,4 @@
+//src\pages\CustomerInsightsPage.jsx
 import React, { useState } from "react";
 import { ArrowLeft, PieChart, Users, MapPin, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";

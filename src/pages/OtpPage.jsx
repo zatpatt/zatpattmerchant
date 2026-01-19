@@ -1,110 +1,145 @@
-// src/pages/OtpPage.jsx
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+//src\pages\OtpPage.jsx
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
+import { supabase } from "../lib/supabase";
 
 export default function OtpPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [otp, setOtp] = useState("");
-  const [error, setError] = useState("");
-  const [timer, setTimer] = useState(30);
-  const [canResend, setCanResend] = useState(false);
+  // get email stored during signup
+  const pending = JSON.parse(localStorage.getItem("merchant_signup_temp") || "{}");
+  const email = location.state?.email || pending.email || "";
 
-  // Get signup temp info (email, names, store)
-  const signupData = JSON.parse(localStorage.getItem("merchant_signup_temp") || "{}");
-  const email = signupData.email || "your email";
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const inputsRef = useRef([]);
 
-  // Timer logic
+  const [resendTimer, setResendTimer] = useState(30);
+  const [verifying, setVerifying] = useState(false);
+
+  // countdown for resend OTP
   useEffect(() => {
-    if (timer <= 0) {
-      setCanResend(true);
-      return;
-    }
-    const id = setInterval(() => setTimer((t) => t - 1), 1000);
-    return () => clearInterval(id);
-  }, [timer]);
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => setResendTimer((t) => t - 1), 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
-  const handleVerify = () => {
-    const storedOtp = localStorage.getItem("merchant_email_otp");
+  // handle OTP changes
+  const handleChange = (value, index) => {
+    if (!/^\d?$/.test(value)) return;
 
-    if (otp === storedOtp) {
-      // OTP correct → Save complete profile permanently
-      localStorage.setItem(
-        "merchant_profile",
-        JSON.stringify({
-          firstName: signupData.firstName,
-          lastName: signupData.lastName,
-          storeName: signupData.storeName,
-          email: signupData.email,
-          password: signupData.password,
-        })
-      );
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
 
-      // Mark authenticated
-      localStorage.setItem("merchant_auth", "true");
-
-      // Remove temp data
-      localStorage.removeItem("merchant_signup_temp");
-      localStorage.removeItem("merchant_email_otp");
-
-      navigate("/dashboard");
-    } else {
-      setError("Invalid OTP");
+    if (value && index < 5) {
+      inputsRef.current[index + 1].focus();
     }
   };
 
-  const handleResend = () => {
-    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    localStorage.setItem("merchant_email_otp", newOtp);
-    alert(`OTP resent to email: ${newOtp}`);
+  const handleKeyDown = (e, index) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputsRef.current[index - 1].focus();
+    }
+  };
 
-    setTimer(30);
-    setCanResend(false);
-    setOtp("");
+  const handleVerify = async () => {
+    const token = otp.join("");
+
+    if (token.length !== 6) {
+      alert("Enter the 6-digit OTP sent to your email.");
+      return;
+    }
+
+    setVerifying(true);
+
+    // 🔥 VERIFY OTP USING SUPABASE
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+
+    setVerifying(false);
+
+    if (error) {
+      alert("Invalid OTP. Try again.");
+      return;
+    }
+
+    // SUCCESS — save auth
+    localStorage.setItem("merchant_auth", "true");
+    localStorage.removeItem("merchant_signup_temp");
+
+    navigate("/dashboard");
+  };
+
+  // resend OTP
+  const handleResend = async () => {
+    await supabase.auth.resend({
+      type: "signup",
+      email,
+    });
+
+    setResendTimer(30);
+    alert("OTP resent to your email.");
   };
 
   return (
-    <div className="min-h-screen bg-[#fff6ed] flex flex-col justify-center items-center px-6">
+    <div className="min-h-screen bg-[#fff6ed] flex justify-center items-center px-6">
       <div className="w-full max-w-sm p-[2px] rounded-xl bg-gradient-to-r from-orange-500 via-orange-400 to-yellow-400 shadow-lg">
 
         <motion.div className="bg-white rounded-xl p-8 text-center">
-          <p className="text-gray-700 mb-2">We have sent a verification code to</p>
+
+          <p className="text-gray-700 mb-2">Enter the verification code sent to:</p>
           <p className="text-black font-semibold text-lg mb-4">{email}</p>
 
-          <input
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="Enter 6-digit OTP"
-            className="w-full border border-orange-400 rounded-xl px-3 py-2 text-center focus:ring-2 focus:ring-orange-400 outline-none"
-          />
+          {/* OTP INPUT BOXES */}
+          <div className="flex justify-center space-x-3 mb-6">
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => (inputsRef.current[index] = el)}
+                value={digit}
+                maxLength="1"
+                onChange={(e) => handleChange(e.target.value, index)}
+                onKeyDown={(e) => handleKeyDown(e, index)}
+                className="w-10 h-10 border text-lg text-center rounded-md border-gray-300 focus:border-orange-500"
+              />
+            ))}
+          </div>
 
-          {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-
-          <motion.button
-            whileTap={{ scale: 0.95 }}
+          {/* VERIFY BUTTON */}
+          <button
             onClick={handleVerify}
-            className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold"
+            disabled={verifying}
+            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold"
           >
-            Verify OTP
-          </motion.button>
+            {verifying ? "Verifying..." : "Verify OTP"}
+          </button>
 
+          {/* RESEND SECTION */}
           <div className="mt-3 text-sm text-gray-600">
-            {canResend ? (
-              <button onClick={handleResend} className="text-orange-500 font-semibold hover:underline">
+            {resendTimer > 0 ? (
+              <span>Resend OTP in {resendTimer}s</span>
+            ) : (
+              <button
+                onClick={handleResend}
+                className="text-orange-500 underline font-semibold"
+              >
                 Resend OTP
               </button>
-            ) : (
-              <span>Resend OTP in {timer}s</span>
             )}
           </div>
 
           <button
             onClick={() => navigate("/signup")}
-            className="mt-3 text-orange-500 hover:underline text-sm"
+            className="mt-3 text-orange-500 underline text-sm"
           >
             Change Email
           </button>
+
         </motion.div>
       </div>
     </div>

@@ -1,61 +1,82 @@
+//src\pages\LoginPage.jsx
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LanguageContext } from "../context/LanguageContext";
 import HeaderImg from "../assets/Header/Header.png";
+import { supabase } from "../lib/supabase";  // ✅ FIXED PATH
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { lang, t, setLang } = useContext(LanguageContext);
 
-  // Inputs
-  const [identifier, setIdentifier] = useState(""); // mobile or email
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-
-  // Errors
   const [error, setError] = useState("");
 
-  // Validator
   const validate = () => {
-    let ok = true;
-
-    // Identify type
     const isEmail = identifier.includes("@");
-    const isMobile = /^\d{10}$/.test(identifier);
 
-    if (!isEmail && !isMobile) {
-      setError("Enter valid Email or 10-digit Mobile Number");
-      ok = false;
-    } else {
-      setError("");
+    if (!isEmail) {
+      setError("Merchant login requires a valid email address.");
+      return false;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      ok = false;
+      setError("Password must be at least 6 characters.");
+      return false;
     }
 
-    return ok;
+    return true;
   };
 
-  const handleLogin = () => {
-    if (!validate()) return;
+const handleLogin = async () => {
+  if (!validate()) return;
 
-    const isEmail = identifier.includes("@");
-    const isMobile = /^\d{10}$/.test(identifier);
-   
-      // Email + Password login
-      localStorage.setItem(
-        "merchant_profile",
-        JSON.stringify({ email: identifier, password })
-      );
-      alert("Login successful!");
-      navigate("/dashboard");
-    };
+  try {
+    const { data, error: loginErr } = await supabase.auth.signInWithPassword({
+      email: identifier,
+      password,
+    });
+
+    if (loginErr) {
+      setError(loginErr.message);
+      return;
+    }
+
+    const user = data?.user;
+
+    // 1️⃣ Check if email is verified
+    const emailVerified =
+      user.email_confirmed_at ||
+      user.confirmed_at ||
+      user.user_metadata?.email_confirmed_at;
+
+    if (!emailVerified) {
+      alert("Please verify your email. We sent you a verification code.");
+      navigate("/otp", { state: { email: identifier } });
+      return;
+    }
+
+    // 2️⃣ Check role
+    if (user.user_metadata?.role !== "merchant") {
+      setError("Only merchant accounts can log in here.");
+      await supabase.auth.signOut();
+      return;
+    }
+
+    // 3️⃣ SUCCESS → redirect
+    localStorage.setItem("merchant_auth", "true");
+    navigate("/dashboard");
+
+  } catch (err) {
+    console.error(err);
+    setError("Login failed. Try again.");
+  }
+};
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fff6ed] relative">
-      {/* Header */}
       <header className="relative w-full">
         <img
           src={HeaderImg}
@@ -63,7 +84,6 @@ export default function LoginPage() {
           className="w-full h-[220px] object-cover animate-zoomOut"
         />
 
-        {/* Language Picker */}
         <div className="absolute right-4 top-4 z-20">
           <select
             value={lang}
@@ -77,7 +97,6 @@ export default function LoginPage() {
         </div>
       </header>
 
-      {/* Login Card */}
       <main className="flex-1 flex items-start justify-center px-4 -mt-20 z-30">
         <div className="w-full max-w-md p-[2px] rounded-xl bg-gradient-to-r from-orange-500 via-orange-400 to-yellow-400 shadow-lg">
           <div className="bg-white rounded-xl p-8 sm:p-10 text-center">
@@ -85,10 +104,9 @@ export default function LoginPage() {
               MERCHANT LOGIN
             </h1>
 
-            {/* Single Input Login */}
             <div className="space-y-4">
               <input
-                placeholder="Email or Mobile Number"
+                placeholder="Email Address"
                 value={identifier}
                 onChange={(e) => {
                   setIdentifier(e.target.value.trim());
@@ -111,7 +129,6 @@ export default function LoginPage() {
               {error && <p className="text-red-500 text-sm">{error}</p>}
             </div>
 
-            {/* LOGIN BUTTON */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleLogin}
@@ -120,7 +137,6 @@ export default function LoginPage() {
               LOGIN
             </motion.button>
 
-            {/* SIGN UP LINK */}
             <p className="mt-4 text-sm text-gray-600">
               Don’t have an account?{" "}
               <span
@@ -134,7 +150,6 @@ export default function LoginPage() {
         </div>
       </main>
 
-      {/* FOOTER */}
       <footer className="bg-orange-500 text-white text-center py-3 mt-auto text-sm">
         © Zatpatt • All Rights Reserved 2025
       </footer>
