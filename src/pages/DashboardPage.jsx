@@ -11,6 +11,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { LanguageContext } from "../context/LanguageContext";
 import Confetti from "react-confetti";
+import { getDashboardData } from "../services/dashboard";
+import { getLiveOrders } from "../services/orders";
 
 /**
  * Merchant Dashboard (ready to paste)
@@ -41,6 +43,16 @@ import Confetti from "react-confetti";
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { t } = useContext(LanguageContext || { t: (s) => s });
+  const [dashboardData, setDashboardData] = useState({
+    total_orders: 0,
+    total_earning: 0,
+    today_orders: 0,
+    today_earning: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  
+  const [liveOrders, setLiveOrders] = useState([]);
+ const userId = 50;
 
   // --- Load initial store name from merchant_profile or merchant_storeName ---
   const getStoreNameFromStorage = () => {
@@ -54,8 +66,7 @@ export default function DashboardPage() {
     }
   };
 
-  const [storeName, setStoreName] = useState(getStoreNameFromStorage);
-
+  const [storeName, setStoreName] = useState(getStoreNameFromStorage());
   // Online status default: OFFLINE (explicitly false)
   const [online, setOnline] = useState(() => {
     const stored = localStorage.getItem("merchantOnlineStatus");
@@ -82,6 +93,65 @@ export default function DashboardPage() {
       return {};
     }
   });
+
+  useEffect(() => {
+  const fetchDashboard = async () => {
+    try {
+      const userId = 50;
+
+      const res = await getDashboardData(userId);
+
+      if (res.status) {
+        setDashboardData(res.data);
+      }
+    } catch (error) {
+      console.error("Dashboard error", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchDashboard();
+}, []);
+
+
+// useEffect(() => {
+//   const fetchLiveOrders = async () => {
+//     try {
+//       const userId = localStorage.getItem("user_id");
+
+//       const res = await getLiveOrders(userId);
+
+//       if (res?.status) {
+//         setLiveOrders(res.data || []);
+//       }
+//     } catch (error) {
+//       console.error("Live orders error", error);
+//     }
+//   };
+
+//   fetchLiveOrders();
+// }, []);
+
+useEffect(() => {
+  const fetchLiveOrders = async () => {
+    try {
+      const res = await getLiveOrders(userId);
+
+      if (res?.status) {
+        setLiveOrders(res.data || []);
+      }
+    } catch (error) {
+      console.error("Live orders error", error);
+    }
+  };
+
+  fetchLiveOrders();
+
+  const interval = setInterval(fetchLiveOrders, 10000);
+
+  return () => clearInterval(interval);
+}, [userId]);
 
   // Products catalog (for top-sellers). Stored in localStorage 'merchant_products' or default sample
   const defaultProducts = [
@@ -353,18 +423,35 @@ export default function DashboardPage() {
 
   // --- UI blocks for stats ---
   const statTiles = [
-    { id: "todayEarnings", label: "Today's Earnings", value: `₹${stats.todayEarnings || 0}` },
-    { id: "todayOrders", label: "Today's Orders", value: `${stats.todayOrdersCount || 0}` },
-    { id: "totalEarnings", label: "Total Earnings", value: `₹${stats.totalEarnings || 0}` },
-    { id: "totalOrders", label: "Total Orders", value: `${stats.totalOrders || 0}` },
-    { id: "newCustomers", label: "New Customers", value: `${stats.newCustomers || 0}` },
-    { id: "pendingPayouts", label: "Pending Payouts", value: `₹${stats.pendingPayouts || 0}` },
-    { id: "avgOrderValue", label: "Avg. Order Value", value: `₹${stats.avgOrderValue || 0}` },
-    { id: "ratings", label: "Average Rating", value: `${stats.avgRating || 0} ★` },
-  ];
+  {
+    id: "todayEarnings",
+    label: "Today's Earnings",
+    value: `₹${dashboardData.today_earning}`,
+  },
+  {
+    id: "todayOrders",
+    label: "Today's Orders",
+    value: dashboardData.today_orders,
+  },
+  {
+    id: "totalEarnings",
+    label: "Total Earnings",
+    value: `₹${dashboardData.total_earning}`,
+  },
+  {
+    id: "totalOrders",
+    label: "Total Orders",
+    value: dashboardData.total_orders,
+  },
+];
 
   // --- Order status list for live orders ---
   const statusList = ["Completed", "Pending", "Canceled"];
+
+  
+  if (loading) {
+  return <div className="p-6">Loading dashboard...</div>;
+}
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col relative pb-28">
@@ -425,20 +512,32 @@ export default function DashboardPage() {
 
           {/* quick list of most recent 5 orders */}
           <div className="mt-4 space-y-3">
-            {orders.slice(0, 5).map((o) => (
-              <div key={o.id} className="flex justify-between items-center border rounded-xl p-3">
-                <div>
-                  <div className="font-semibold text-sm">Order #{o.id}</div>
-                  <div className="text-xs text-gray-600">{o.customer} · {new Date(o.timestamp).toLocaleString()}</div>
-                  <div className="text-xs text-gray-700 mt-1">Items: {Array.isArray(o.items) ? o.items.join(", ") : o.items}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold">₹{o.amount}</div>
-                  <div className="text-xs text-gray-500 mt-1">{o.status}</div>
-                </div>
-              </div>
+            {liveOrders.slice(0, 5).map((o) => (
+             <div key={o.order_code} className="flex justify-between items-center border rounded-xl p-3">
+  <div>
+    <div className="font-semibold text-sm">Order #{o.order_code}</div>
+
+    <div className="text-xs text-gray-600">
+      {o.customer_name}
+    </div>
+
+    <div className="text-xs text-gray-700 mt-1">
+      Delivery Partner: {o.delivery_partner_name}
+    </div>
+  </div>
+
+  <div className="text-right">
+    <div className="font-semibold">₹{o.total_amount}</div>
+
+    <div className="text-xs text-gray-500 mt-1">
+      {o.status}
+    </div>
+  </div>
+</div>
             ))}
-            {orders.length === 0 && <div className="text-gray-500">No orders yet.</div>}
+          {liveOrders.length === 0 && (
+  <div className="text-gray-500">No live orders.</div>
+)}
           </div>
         </div>
 
