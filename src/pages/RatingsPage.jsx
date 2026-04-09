@@ -16,67 +16,142 @@ import {
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  getMerchantRating,
+  getMerchantReviews,
+} from "../services/ratingsApi";
+import { getMerchantReviewInsights } from "../services/ratingsApi";
+import { getMerchantChats } from "../services/ratingsApi";
+
 
 // LocalStorage key for reviews (you chose option A)
-const REVIEWS_KEY = "merchant_reviews";
 
-function loadReviews() {
-  try {
-    const raw = localStorage.getItem(REVIEWS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
-  } catch (e) {
-    console.warn("Failed to load reviews:", e);
-    return [];
-  }
-}
-
-function saveReviews(list) {
-  try {
-    localStorage.setItem(REVIEWS_KEY, JSON.stringify(list));
-  } catch (e) {
-    console.warn("Failed to save reviews:", e);
-  }
-}
 
 export default function RatingsPage() {
   const navigate = useNavigate();
 
   // UI state
-  const [activeTab, setActiveTab] = useState("overview");
-  const [reviews, setReviews] = useState(() => loadReviews());
+  const [activeTab, setActiveTab] = useState(() => {
+  return localStorage.getItem("ratings_active_tab") || "overview";
+});
+  const [reviews, setReviews] = useState([]);
+  const [ratingSummary, setRatingSummary] = useState({});
   const [replyText, setReplyText] = useState({});
   const [filterStar, setFilterStar] = useState(0); // 0 = all
   const [searchQ, setSearchQ] = useState("");
+  const [insights, setInsights] = useState([]);
+  const [insightFilter, setInsightFilter] = useState("month");
+  const [chats, setChats] = useState([]);
   const [pinnedMetrics, setPinnedMetrics] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("merchant_pinned_metrics") || "[]");
     } catch { return [] }
   });
 
+  const fetchChats = async () => {
+  try {
+    const res = await getMerchantChats({ user: 50 });
+
+    console.log("Chats API:", res);
+
+    if (res?.status) {
+      setChats(res.data || []);
+    }
+  } catch (err) {
+    console.error("Chats error:", err);
+  }
+};
+
+
+  const fetchInsights = async () => {
+  try {
+    const res = await getMerchantReviewInsights({
+      user: 50,
+      filter: insightFilter,
+    });
+
+    console.log("Insights API:", res);
+
+    if (res?.status) {
+      setInsights(res.data || []);
+    }
+  } catch (err) {
+    console.error("Insights error:", err);
+  }
+};
+
+  const fetchRatings = async () => {
+  try {
+    const res = await getMerchantRating({ user: 51 });
+
+    console.log("Rating API:", res);
+
+    if (res?.status) {
+      setRatingSummary(res.data || {});
+    }
+  } catch (err) {
+    console.error("Rating error:", err);
+  }
+};
+
+const fetchReviews = async () => {
+  try {
+    const res = await getMerchantReviews({ user: 51 });
+
+    console.log("Reviews API:", res);
+
+    if (res?.status) {
+      setReviews(
+  (res.data || []).map((item) => ({
+    id: item.id,
+    rating: item.ratings,
+    text: item.remark,
+    items: item.items?.join(", "),
+    name: "Customer", // fallback (backend not giving)
+    date: new Date().toISOString(), // fallback
+    status: "",
+  }))
+);
+    }
+  } catch (err) {
+    console.error("Reviews error:", err);
+  }
+};
+
+// useEffect(() => {
+//   fetchRatings();
+//   fetchReviews();
+//   fetchInsights();
+// }, []);
+
+useEffect(() => {
+  if (activeTab === "overview") {
+    fetchRatings();
+  }
+
+  if (activeTab === "all") {
+    fetchReviews();
+  }
+
+  if (activeTab === "insights") {
+    fetchInsights();
+  }
+
+ if (activeTab === "replies") {
+  fetchChats();
+}
+}, [activeTab]);
+
+useEffect(() => {
+  fetchInsights();
+}, [insightFilter]);
+
   // live storage listener so updates from other tabs/apps reflect here
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.key === REVIEWS_KEY) setReviews(loadReviews());
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
 
-  // whenever reviews local changed in this component, persist
-  useEffect(() => {
-    saveReviews(reviews);
-  }, [reviews]);
-
+ 
   // derived metrics
-  const totalReviews = reviews.length;
-  const averageRating = useMemo(() => {
-    if (!reviews.length) return 0;
-    const sum = reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0);
-    return +(sum / reviews.length).toFixed(2);
-  }, [reviews]);
+  const totalReviews = ratingSummary?.total_reviews || reviews.length;
+  const averageRating = ratingSummary?.average_rating || 0;
 
   const starDistribution = useMemo(() => {
     const dist = [0, 0, 0, 0, 0];
@@ -89,27 +164,22 @@ export default function RatingsPage() {
   }, [reviews]);
 
   // simple daily trend for last 7 days (counts)
-  const ratingTrend = useMemo(() => {
-    const days = Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      d.setHours(0, 0, 0, 0);
-      return { key: d.toISOString().slice(0, 10), label: `${d.getDate()}/${d.getMonth() + 1}`, ratingSum: 0, count: 0 };
+
+const ratingTrend = useMemo(() => {
+  const list = [];
+
+  insights.forEach((item) => {
+    item.date_wise?.forEach((d) => {
+      list.push({
+        name: new Date(d.date).toLocaleDateString(),
+        rating: d.ratings,
+      });
     });
+  });
 
-    const map = Object.fromEntries(days.map((d) => [d.key, d]));
+  return list;
+}, [insights]);
 
-    reviews.forEach((r) => {
-      const dt = new Date(r.date || r.placedAt || Date.now());
-      const key = dt.toISOString().slice(0, 10);
-      if (map[key]) {
-        map[key].ratingSum += Number(r.rating) || 0;
-        map[key].count += 1;
-      }
-    });
-
-    return Object.values(map).map((d) => ({ name: d.label, rating: d.count ? +(d.ratingSum / d.count).toFixed(2) : null }));
-  }, [reviews]);
 
   // listing + filters for All Reviews tab
   const filteredReviews = useMemo(() => {
@@ -171,6 +241,12 @@ export default function RatingsPage() {
     setReviews(demo);
   };
 
+  const filterLabelMap = {
+  week: "This Week",
+  month: "This Month",
+};
+
+
   return (
     <div className="min-h-screen bg-[#fff9f4]">
       {/* Header */}
@@ -179,7 +255,7 @@ export default function RatingsPage() {
           <ArrowLeft className="text-black" size={20} />
         </div>
         <h1 className="text-xl font-semibold">Ratings & Reviews</h1>
-        <div className="ml-auto text-sm opacity-90">Live updates from <code className="bg-white text-black px-2 py-1 rounded">{REVIEWS_KEY}</code></div>
+        <div className="ml-auto text-sm opacity-90">Live updates from API</div>
       </div>
 
       {/* Tabs */}
@@ -188,7 +264,10 @@ export default function RatingsPage() {
           <button
             key={tab}
             className={`py-3 px-4 text-sm font-medium ${activeTab === tab ? "border-b-2 border-orange-500 text-orange-600" : "text-gray-500"}`}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+            setActiveTab(tab);
+            localStorage.setItem("ratings_active_tab", tab);
+          }}
           >
             {tab === "overview" && "⭐ Overview"}
             {tab === "all" && "💬 All Reviews"}
@@ -207,7 +286,7 @@ export default function RatingsPage() {
                 <h2 className="text-4xl font-bold text-orange-500">{averageRating} <span className="text-gray-500 text-2xl">/ 5</span></h2>
                 <p className="text-sm text-gray-600">Based on {totalReviews} reviews</p>
               </div>
-              <div>{ratingTrend.some(d => d.rating) && (ratingTrend[ratingTrend.length-1].rating >= (ratingTrend[0].rating||0) ? <TrendingUp className="text-green-500" /> : <TrendingDown className="text-red-500" />)}</div>
+              <div>{ratingTrend?.length > 0 && ratingTrend.some(d => d.rating) && (ratingTrend?.[ratingTrend.length - 1]?.rating || 0 >= (ratingTrend?.[ratingTrend.length - 1]?.rating || 0||0) ? <TrendingUp className="text-green-500" /> : <TrendingDown className="text-red-500" />)}</div>
             </div>
 
             <button onClick={() => togglePin("averageRating")} className="absolute top-3 right-3 text-gray-400 hover:text-orange-500"><Pin size={18} /></button>
@@ -229,7 +308,9 @@ export default function RatingsPage() {
             <p>💬 Most customers love your packaging and delivery speed.</p>
             <p>⚠️ Reviews mentioning delivery delays: {reviews.filter(r => (r.text||"").toLowerCase().includes("delay") || (r.text||"").toLowerCase().includes("late")).length}</p>
             <p>📈 Rating change (7d): {(() => {
-              const first = ratingTrend[0]?.rating || 0; const last = ratingTrend[ratingTrend.length-1]?.rating || 0; return (last - first).toFixed(2);
+              const first = ratingTrend?.[0]?.rating || 0;
+              const last = ratingTrend?.[ratingTrend.length - 1]?.rating || 0;
+               return (last - first).toFixed(2);
             })()}</p>
           </div>
 
@@ -242,7 +323,7 @@ export default function RatingsPage() {
 
           <div className="flex gap-2">
             <button onClick={exportReviewsCSV} className="px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"><Download size={16} /> Export CSV</button>
-            <button onClick={() => { setReviews([]); saveReviews([]); }} className="px-3 py-2 bg-red-100 text-red-600 rounded-xl">Clear Reviews</button>
+            <button onClick={() => setReviews([])} className="px-3 py-2 bg-red-100 text-red-600 rounded-xl">Clear Reviews</button>
             <button onClick={seedDemo} className="px-3 py-2 bg-gray-100 rounded-xl">Seed Demo</button>
           </div>
         </div>
@@ -274,12 +355,12 @@ export default function RatingsPage() {
           {filteredReviews.map((r) => (
             <motion.div key={r.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-4 rounded-2xl shadow">
               <div className="flex items-start gap-3">
-                <img src={r.image || `https://i.pravatar.cc/40?u=${r.id}`} alt={r.name} className="w-10 h-10 rounded-full object-cover" />
+                <img src={r.image || `https://i.pravatar.cc/40?u=${r.id}`} alt={r.name || r.user_name || "User"} className="w-10 h-10 rounded-full object-cover" />
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="font-medium">{r.name} <span className="text-xs text-gray-400 ml-2">{r.status || ''}</span></div>
-                      <p className="text-xs text-gray-500">{new Date(r.date).toLocaleString()}</p>
+                      <div className="font-medium">{r.name || r.user_name || "User"} <span className="text-xs text-gray-400 ml-2">{r.status || ''}</span></div>
+                      <p className="text-xs text-gray-500">{new Date(r.created_at || r.date).toLocaleString()}</p>
                     </div>
                     <div className="text-right">
                       <div className="font-semibold">{r.rating}★</div>
@@ -318,7 +399,18 @@ export default function RatingsPage() {
       {activeTab === "insights" && (
         <div className="p-5 space-y-6">
           <div className="bg-white p-5 rounded-2xl shadow">
-            <h3 className="font-semibold mb-3">📈 Rating Trend (Last 7 Days)</h3>
+           <div className="flex justify-between items-center mb-3">
+          <h3 className="font-semibold">📈 Rating Trend ({filterLabelMap[insightFilter]})</h3>
+
+          <select
+            value={insightFilter}
+            onChange={(e) => setInsightFilter(e.target.value)}
+            className="border px-3 py-1 rounded-lg text-sm"
+          >
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+        </div>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={ratingTrend}>
                 <XAxis dataKey="name" />
@@ -333,16 +425,26 @@ export default function RatingsPage() {
           <div className="bg-white p-5 rounded-2xl shadow">
             <h3 className="font-semibold mb-3">💥 Top-rated Products</h3>
             <ul className="text-sm text-gray-700 space-y-1">
-              {Array.from(new Set(reviews.flatMap(r => (r.items || "").split(",").map(s=>s.trim()).filter(Boolean)))).slice(0,5).map((it, idx)=> (
-                <li key={idx}>• {it} — ⭐ {(Math.random()*0.9+4.1).toFixed(1)}</li>
-              ))}
+              {insights.flatMap((item) =>
+              item.high_rated?.map((prod, idx) => (
+                <li key={`${item.id}-high-${idx}`}>
+                  • {prod} — ⭐ High Rated
+                </li>
+              ))
+            )}
             </ul>
           </div>
 
           <div className="bg-white p-5 rounded-2xl shadow">
             <h3 className="font-semibold mb-3">❗ Low-rated Items</h3>
             <ul className="text-sm text-gray-700 space-y-1">
-              {reviews.filter(r=>r.rating<=3).slice(0,5).map(r=> (<li key={r.id}>• {r.items?.split(',')?.[0] || '—'} — ⭐ {r.rating} ({r.name})</li>))}
+             {insights.flatMap((item) =>
+              item.low_rated?.map((prod, idx) => (
+                <li key={`${item.id}-low-${idx}`}>
+                  • {prod} — ⚠️ Low Rated
+                </li>
+              ))
+            )}
             </ul>
           </div>
         </div>
@@ -354,20 +456,34 @@ export default function RatingsPage() {
             <h3 className="font-semibold mb-3">🧾 Reply Management</h3>
             <p className="text-sm text-gray-600 mb-3">Manage replied reviews and mark resolved.</p>
 
-            {reviews.filter(r=>r.replied).length === 0 && <div className="text-gray-500">No replied reviews yet.</div>}
+           {chats.length === 0 && (
+            <div className="text-gray-500">No messages yet.</div>
+          )}
 
-            {reviews.filter(r=>r.replied).map(r=> (
-              <div key={r.id} className="border-t py-3">
+            {chats.map((chat) => (
+             <div key={chat.order} className="border-t py-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-sm font-medium">{r.name} <span className="text-xs text-gray-400">{new Date(r.date).toLocaleDateString()}</span></p>
-                    <p className="text-xs text-gray-500">{r.text}</p>
+                    <p className="text-sm font-medium">
+                    {chat.customer ? `User #${chat.customer}` : "Merchant"}
+                    <span className="text-xs text-gray-400 ml-2">
+                      {new Date(chat.timestamp).toLocaleDateString()}
+                    </span>
+                  </p>
+
+                  <p className="text-xs text-gray-500">{chat.message}</p>
+
+                  <div className="text-xs text-gray-500">
+                    {chat.merchant_reply || "—"}
                   </div>
-                  <div className="flex flex-col gap-2 items-end">
-                    <div className="text-xs text-gray-500">{r.merchantReply || '—'}</div>
                     <div className="flex gap-2">
-                      <button onClick={()=>markResolved(r.id)} className="text-orange-600 text-sm border px-3 py-1 rounded-xl">Mark Resolved</button>
-                      <button onClick={()=>setReviews(prev=>prev.filter(p=>p.id!==r.id))} className="text-red-600 text-sm border px-3 py-1 rounded-xl">Remove</button>
+                      <button className="text-orange-600 text-sm border px-3 py-1 rounded-xl">
+                      Mark Resolved
+                    </button>
+
+                    <button className="text-red-600 text-sm border px-3 py-1 rounded-xl">
+                      Remove
+                    </button>
                     </div>
                   </div>
                 </div>

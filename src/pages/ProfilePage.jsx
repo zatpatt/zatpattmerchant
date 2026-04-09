@@ -3,6 +3,12 @@ import React, { useState, useEffect } from "react";
 import PageHeader from "../components/PageHeader";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { 
+  getMerchantProfile, 
+  editMerchantProfile,
+  editWorkingHours   // ✅ ADD THIS
+} from "../services/profileApi";
+
 
 /**
  * ProfilePage.jsx (updated)
@@ -101,7 +107,76 @@ export default function ProfilePage() {
     }
   };
 
-  const [profile, setProfile] = useState(() => loadInitialProfile());
+  
+const fetchProfileFromAPI = async () => {
+  try {
+    const res = await getMerchantProfile({ user: 50 });
+
+    console.log("Profile API:", res);
+
+    if (res?.status) {
+      const data = res.data || {};
+
+      setProfile((prev) => ({
+        ...prev,
+
+        // ✅ BASIC INFO
+        storeName: data.full_name || prev.storeName,
+        address: `${data.city || ""} ${data.state || ""}` || prev.address,
+        contact: data.mobile || prev.contact,
+        email: data.email || prev.email,
+        logo: data.logo || prev.logo,
+
+        // ✅ OWNER + GST
+        ownerName: data.owner_name || prev.ownerName,
+        gst: data.gst_number || prev.gst,
+
+        // ✅ WORKING HOURS (convert array → string)
+        hours:
+          data.working_hrs?.length > 0
+            ? `${data.working_hrs[0].opening_time} - ${data.working_hrs[0].closing_time}`
+            : prev.hours,
+
+        // ✅ DELIVERY SETTINGS
+        deliveryRadius:
+          data.servicable_radius_km || prev.deliveryRadius,
+
+        // ✅ PERFORMANCE
+        performance: {
+          ...prev.performance,
+          rating: data.avg_rating || 0,
+          completed: data.completed_orders || 0,
+          cancellations: data.cancelled_orders || 0,
+        },
+
+        // ✅ PAYOUT
+        payout: {
+          ...prev.payout,
+          bankName: data.bank_name || "",
+          account: data.account_number || "",
+          upi: data.upi_id || "",
+        },
+
+        // ✅ DOCUMENTS
+        documents: {
+          license: data.business_certificate || "",
+          gst: data.gst_certificate || "",
+          idProof: data.aadhaar_card || "",
+        },
+      }));
+    }
+  } catch (err) {
+    console.error("Profile API error:", err);
+  }
+};
+
+
+const [profile, setProfile] = useState(() => loadInitialProfile());
+
+
+useEffect(() => {
+  fetchProfileFromAPI();
+}, []);
 
   // keep local state onlineStatus for smooth toggling and sync with localStorage
   const [online, setOnline] = useState(profile.online);
@@ -193,7 +268,7 @@ export default function ProfilePage() {
     reader.onload = () => {
       // Save image/data-url
       if (docKey === "logo") {
-        update("logo", reader.result);
+        update("logo", file);
       } else {
         update(`documents.${docKey}`, reader.result);
       }
@@ -213,20 +288,130 @@ export default function ProfilePage() {
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
-    try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-      // keep minimal merchantAccount in sync as well
-      localStorage.setItem(ACCOUNT_KEY, JSON.stringify({
-        storeName: profile.storeName,
-        email: profile.email,
-        phone: profile.contact
-      }));
-      alert("Profile saved ✓");
-    } catch {
-      alert("Unable to save (storage error)");
+const handleSave = async () => {
+  try {
+    const payload = {
+      user: 50,
+
+      full_name: profile.storeName,
+      address: profile.address,
+      mobile: profile.contact,
+      email: profile.email,
+
+      gst_number: profile.gst || undefined,
+      servicable_radius_km: profile.deliveryRadius || 0,
+
+      account_number: profile.payout?.account || "",
+      owner_name: profile.ownerName || "",
+      upi_id: profile.payout?.upi || "",
+      bank_name: profile.payout?.bankName || "",
+
+      city: profile.address?.split(" ")[0] || "",   // "Vasind"
+      state: profile.address?.split(" ")[1] || "",  // "Maharashtra"
+
+      logo: profile.logo,
+    };
+
+    const res = await editMerchantProfile(payload); // ✅ correct
+
+    await handleSaveWorkingHours();
+
+    console.log("Edit Profile API:", res);
+
+    if (res?.status) {
+      alert("Profile updated successfully ✅");
+      fetchProfileFromAPI();
+    } else {
+      alert(res?.message || "Update failed");
     }
-  };
+
+  } catch (err) {
+    console.error("Edit profile error:", err);
+    alert("Something went wrong ❌");
+  }
+};
+
+
+//     export const editMerchantProfile = async (payload) => {
+//   const formData = new FormData();
+
+//   const appendIfExists = (key, value) => {
+//     if (value !== undefined && value !== null) {
+//       formData.append(key, value);
+//     }
+//   };
+
+//   appendIfExists("user", payload.user);
+//   appendIfExists("full_name", payload.full_name);
+//   appendIfExists("address", payload.address);
+//   appendIfExists("mobile", payload.mobile);
+//   appendIfExists("email", payload.email);
+
+//   appendIfExists("gst_number", payload.gst_number);
+//   appendIfExists("fssai_number", payload.fssai_number);
+//   appendIfExists("pan_number", payload.pan_number);
+
+//   appendIfExists("servicable_radius_km", payload.servicable_radius_km);
+
+//   appendIfExists("account_number", payload.account_number);
+//   appendIfExists("owner_name", payload.owner_name);
+//   appendIfExists("upi_id", payload.upi_id);
+//   appendIfExists("bank_name", payload.bank_name);
+
+//   appendIfExists("city", payload.city);
+//   appendIfExists("state", payload.state);
+//   appendIfExists("pincode", payload.pincode);
+
+//   // ✅ ONLY append file if it's actually a FILE
+//   if (payload.logo instanceof File) {
+//     formData.append("logo", payload.logo);
+//   }
+
+//   const res = await api.post(
+//     "/api/v1/common/orders/edit-profile-merchant/",
+//     formData,
+//     {
+//       headers: {
+//         "Content-Type": "multipart/form-data",
+//       },
+//     }
+//   );
+
+//   return res.data;
+// };
+  
+const handleSaveWorkingHours = async () => {
+  try {
+    // convert "10:00 - 11:00" → API format
+    const [opening, closing] = profile.hours.split(" - ");
+
+    const payload = {
+      user: 50,
+      working_hrs: [
+        {
+          day: 1, // you can make dynamic later
+          opening_time: opening + ":00",
+          closing_time: closing + ":00",
+        },
+      ],
+    };
+
+    const res = await editWorkingHours(payload);
+
+    console.log("Working Hours API:", res);
+
+    if (res?.status) {
+      alert("Working hours updated ✅");
+    } else {
+      alert(res?.message || "Failed to update hours");
+    }
+
+  } catch (err) {
+    console.error("Working hours error:", err);
+    alert("Error updating working hours ❌");
+  }
+};
+
 
   const handleBankVerify = () => {
     update("payout.verified", true);
@@ -339,9 +524,11 @@ export default function ProfilePage() {
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Store Logo / Banner</span>
-              <input type="file" accept="image/*" onChange={(e)=> {
-                const file = e.target.files?.[0]; if(!file) return;
-                const r = new FileReader(); r.onload = ()=> update("logo", r.result); r.readAsDataURL(file);
+              <input type="file" accept="image/*"onChange={(e)=> {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                update("logo", file); // ✅ ONLY THIS
               }} className="mt-1" />
             </label>
           </div>

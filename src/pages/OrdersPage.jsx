@@ -4,6 +4,8 @@ import { ArrowLeft, Phone, MessageCircle, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NotificationContext } from "../context/NotificationContext";
 import { useNavigate } from "react-router-dom";
+import { getMerchantOrders } from "../services/merchantOrders";
+import { useLocation } from "react-router-dom";
 
 /*
  CLEAN ORDERS PAGE (MINIMAL VERSION)
@@ -71,6 +73,8 @@ export default function OrdersPage() {
   const notificationCtx = useContext(NotificationContext || {});
   const toast = React.useContext(ToastContext) || { push: (m) => console.log(m) };
   const navigate = useNavigate();
+  // Inside component, add:
+  const location = useLocation();
 
   // merchant profile
   const merchantProfile = (() => {
@@ -88,19 +92,86 @@ export default function OrdersPage() {
     "";
 
   // orders
-  const [orders, setOrders] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("merchant_orders") || "null");
-      if (Array.isArray(saved) && saved.length) return saved;
-    } catch {}
-    const seed = [
-      makeDemoOrder(1001, "New", 2),
-      makeDemoOrder(1002, "Preparing", 8),
-      makeDemoOrder(1003, "Prepared", 18),
-    ];
-    localStorage.setItem("merchant_orders", JSON.stringify(seed));
-    return seed;
-  });
+  // const [orders, setOrders] = useState(() => {
+  //   try {
+  //     const saved = JSON.parse(localStorage.getItem("merchant_orders") || "null");
+  //     if (Array.isArray(saved) && saved.length) return saved;
+  //   } catch {}
+  //   const seed = [
+  //     makeDemoOrder(1001, "New", 2),
+  //     makeDemoOrder(1002, "Preparing", 8),
+  //     makeDemoOrder(1003, "Prepared", 18),
+  //   ];
+  //   localStorage.setItem("merchant_orders", JSON.stringify(seed));
+  //   return seed;
+  // });
+
+  const [orders, setOrders] = useState([]);
+const userId = 50;
+
+/* REQUIRED TABS ONLY */
+const tabs = ["New", "Accepted", "Preparing", "Prepared"];
+
+const [activeTab, setActiveTab] = useState(location.state?.tab || "New");
+const [query, setQuery] = useState("");
+const [paymentFilter, setPaymentFilter] = useState("");
+
+useEffect(() => {
+  let isMounted = true;
+
+  const fetchOrders = async () => {
+  try {
+    // In OrdersPage.jsx — inside fetchOrders
+
+const statusMap = {
+  New: "new",           // ← back to "new"
+  Accepted: "accepted",
+  Preparing: "preparing",
+  Prepared: "prepared",
+};
+
+
+    const status = statusMap[activeTab];
+    const paymentStatus = paymentFilter ? paymentFilter.toLowerCase() : "";
+
+    const res = await getMerchantOrders(userId, status, paymentStatus);
+
+    if (res?.status && isMounted) {
+      setOrders(
+        (res.data || []).map((o) => {
+          // Map API status back to UI tab label
+
+     
+const statusToTab = {
+  new: "New",           // ← back to "new"
+  accepted: "Accepted",
+  preparing: "Preparing",
+  prepared: "Prepared",
+};
+          return {
+            id: o.order_id,
+            customer: o.customer_name,
+            phone: o.customer_phone,
+            amount: o.total_amount,
+            payment: o.payment_status,
+            placedAt: o.created_at || o.created_on,
+            status: statusToTab[o.status] ?? activeTab, // fallback to current tab
+          };
+        })
+      );
+    }
+  } catch (error) {
+    console.error("Orders fetch error", error);
+  }
+};
+
+  fetchOrders();
+
+  return () => {
+    isMounted = false;
+  };
+}, [activeTab, paymentFilter]);
+
 
   const persist = (next) => {
     setOrders(next);
@@ -108,60 +179,67 @@ export default function OrdersPage() {
   };
 
   /* REQUIRED TABS ONLY */
-  const tabs = ["New", "Preparing", "Prepared"];
+  // const tabs = ["New", "Preparing", "Prepared"];
 
-  const [activeTab, setActiveTab] = useState("New");
-  const [query, setQuery] = useState("");
-  const [paymentFilter, setPaymentFilter] = useState("");
+  // const [activeTab, setActiveTab] = useState("New");
+  // const [query, setQuery] = useState("");
+  // const [paymentFilter, setPaymentFilter] = useState("");
 
   const highlightedNewIds = useRef(new Set());
   const incomingRef = useRef(null);
 
   // Incoming order simulation
-  useEffect(() => {
-    if (incomingRef.current) clearInterval(incomingRef.current);
+  // useEffect(() => {
+  //   if (incomingRef.current) clearInterval(incomingRef.current);
 
-    incomingRef.current = setInterval(() => {
-      const id = Math.floor(10000 + Math.random() * 90000);
-      const o = makeDemoOrder(id, "New", 0);
-      const next = [o, ...orders];
-      persist(next);
+  //   incomingRef.current = setInterval(() => {
+  //     const id = Math.floor(10000 + Math.random() * 90000);
+  //     const o = makeDemoOrder(id, "New", 0);
+  //     const next = [o, ...orders];
+  //     persist(next);
 
-      highlightedNewIds.current.add(o.id);
-      setTimeout(() => highlightedNewIds.current.delete(o.id), 3000);
+  //     highlightedNewIds.current.add(o.id);
+  //     setTimeout(() => highlightedNewIds.current.delete(o.id), 3000);
 
-      toast.push(`New order ${o.id}`);
-      notificationCtx?.addNotification?.(`New order ${o.id}`);
+  //     toast.push(`New order ${o.id}`);
+  //     notificationCtx?.addNotification?.(`New order ${o.id}`);
 
-      if (merchantPhone) {
-        try {
-          window.open(`tel:${merchantPhone}`);
-        } catch {}
-      }
-    }, 18000);
+  //     if (merchantPhone) {
+  //       try {
+  //         window.open(`tel:${merchantPhone}`);
+  //       } catch {}
+  //     }
+  //   }, 18000);
 
-    return () => clearInterval(incomingRef.current);
-  }, [orders, merchantPhone]);
+  //   return () => clearInterval(incomingRef.current);
+  // }, [orders, merchantPhone]);
 
-  const ordersByTab = useMemo(() => {
-    const map = {}; tabs.forEach((t) => (map[t] = []));
-    orders.forEach((o) => (map[o.status] || map["New"]).push(o));
-    return map;
-  }, [orders]);
+  // const ordersByTab = useMemo(() => {
+  //   const map = {}; tabs.forEach((t) => (map[t] = []));
+  //   orders.forEach((o) => (map[o.status] || map["New"]).push(o));
+  //   return map;
+  // }, [orders]);
 
-  const filtered = useMemo(() => {
-    const list = ordersByTab[activeTab] || [];
-    const q = query.trim().toLowerCase();
+ const filtered = useMemo(() => {
+  const q = query.trim().toLowerCase();
 
-    return list.filter((o) => {
-      if (q) {
-        const hay = `${o.id} ${o.customer} ${o.phone}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      if (paymentFilter && o.payment !== paymentFilter) return false;
-      return true;
-    });
-  }, [ordersByTab, activeTab, query, paymentFilter]);
+  return orders.filter((o) => {
+    if (q) {
+      const hay = `${o.id} ${o.customer} ${o.phone}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+
+    if (
+      paymentFilter &&
+      o.payment?.toLowerCase() !== paymentFilter.toLowerCase()
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}, [orders, query, paymentFilter]);
+
 
   return (
     <ToastProvider>
@@ -206,10 +284,12 @@ export default function OrdersPage() {
                       activeTab === t ? "bg-orange-400 text-white" : "bg-white border"
                     }`}
                   >
-                    {t}{" "}
-                    <span className="ml-2 text-xs text-gray-600">
-                      {(ordersByTab[t] || []).length}
-                    </span>
+                    {t}
+                    {activeTab === t && (
+                      <span className="ml-2 text-xs text-gray-600">
+                        {orders.length}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -232,8 +312,8 @@ export default function OrdersPage() {
                   className="border rounded-xl px-3 py-2 text-sm"
                 >
                   <option value="">All payments</option>
-                  <option value="Prepaid">Prepaid</option>
-                  <option value="COD">COD</option>
+                  <option value="prepaid">Prepaid</option>
+                  <option value="cod">COD</option>
                 </select>
               </div>
             </div>
@@ -263,7 +343,7 @@ export default function OrdersPage() {
                     <div>
                       <p className="font-semibold">#{o.id}</p>
                       <p className="text-xs text-gray-600">
-                        {new Date(o.placedAt).toLocaleString()}
+                        {o.placedAt ? new Date(o.placedAt).toLocaleString() : "-"}
                       </p>
                       <p className="text-sm text-gray-700 mt-2">
                         {o.customer} • {o.phone}
@@ -276,11 +356,11 @@ export default function OrdersPage() {
                     </div>
 
                     <button
-                      onClick={() => navigate(`/order/${o.id}`)}
-                      className="px-3 py-1 border rounded-xl text-sm"
-                    >
-                      Details
-                    </button>
+                    onClick={() => navigate(`/order/${o.id}`)}
+                    className="px-3 py-1 border rounded-xl text-sm"
+                  >
+                    Details
+                  </button>
                   </motion.div>
                 );
               })

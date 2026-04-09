@@ -15,6 +15,15 @@ import {
 } from "recharts";
 import { Download, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import {
+  getEarningsOverview,
+  requestMerchantPayout,
+  getPendingPayouts,
+  getPayoutHistory,
+  getOrdersHistory,       // ✅ NEW
+  getMerchantInsights     // ✅ NEW
+} from "../services/earningsApi";
+
 
 /**
  * EarningsPage.jsx
@@ -59,12 +68,25 @@ export default function EarningsPage() {
     loadPayoutRequests()
   );
 
-const [activeTab, setActiveTab] = useState("overview");
+const [activeTab, setActiveTab] = useState(() => {
+  return localStorage.getItem("earnings_active_tab") || "overview";
+});
 
+useEffect(() => {
+  localStorage.setItem("earnings_active_tab", activeTab);
+}, [activeTab]);
+
+
+const [overviewLoaded, setOverviewLoaded] = useState(false);
+const [payoutLoaded, setPayoutLoaded] = useState(false);
+const [lifetimeSales, setLifetimeSales] = useState(0);
   // Overview filters
   const [overviewRange, setOverviewRange] = useState("Today"); // Today | This Week | This Month | Custom
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+
+  const [pendingAmount, setPendingAmount] = useState(0);
+  const [payoutHistory, setPayoutHistory] = useState([]);
 
   // History filters
   const [historyStatus, setHistoryStatus] = useState("All"); // All | Paid | Pending
@@ -76,6 +98,162 @@ const [activeTab, setActiveTab] = useState("overview");
 
   // Marketing / reports states
   const [reportRange, setReportRange] = useState("Today"); // for exports etc.
+
+  const [overviewData, setOverviewData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const [historyData, setHistoryData] = useState([]);
+  const [insightsData, setInsightsData] = useState(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [insightsLoaded, setInsightsLoaded] = useState(false);
+
+  const [totalOrders, setTotalOrders] = useState(0);
+
+ useEffect(() => {
+  if (activeTab === "overview" && !overviewLoaded) {
+    fetchOverview();
+    setOverviewLoaded(true);
+  }
+
+  if (activeTab === "payouts" && !payoutLoaded) {
+    fetchPayoutData();
+    setPayoutLoaded(true);
+  }
+
+  if (activeTab === "history" && !historyLoaded) {
+    fetchHistory();
+    setHistoryLoaded(true);
+  }
+
+  if (activeTab === "insights" && !insightsLoaded) {
+    fetchInsights();
+    setInsightsLoaded(true);
+  }
+}, [activeTab]);
+
+const fetchHistory = async () => {
+  try {
+    const res = await getOrdersHistory({
+      user: 50,
+      start_date: "",
+      end_date: "",
+    });
+
+    console.log("History API:", res);
+
+    if (res?.status) {
+      const historyRes = res?.data;
+
+      // ✅ SET TOTAL ORDERS
+      setTotalOrders(historyRes?.total_orders || 0);
+
+      // ✅ SET LIST
+      if (Array.isArray(historyRes)) {
+        setHistoryData(historyRes);
+      } else if (Array.isArray(historyRes?.orders)) {
+        setHistoryData(historyRes.orders);
+      } else {
+        setHistoryData([]);
+      }
+    }
+  } catch (err) {
+    console.error("History API error:", err);
+  }
+};
+
+const fetchInsights = async () => {
+  try {
+    const res = await getMerchantInsights({
+      user: 50,
+    });
+
+    console.log("Insights API:", res);
+
+    if (res?.status) {
+      setInsightsData(res.data);
+    }
+  } catch (err) {
+    console.error("Insights API error:", err);
+  }
+};
+
+const fetchPayoutData = async () => {
+  try {
+    // ✅ 1. CALL API (THIS WAS MISSING)
+    const pendingRes = await getPendingPayouts({ user: 50 });
+
+    console.log("Pending API:", pendingRes);
+
+   const pendingData = pendingRes?.data;
+
+    setPendingAmount(pendingData?.pending || 0);
+
+    // 🔥 IMPORTANT FIX
+    setLifetimeSales(pendingData?.["lifetime sales"] || 0);
+
+    // ✅ 2. CALL HISTORY API
+    const historyRes = await getPayoutHistory({ user: 50 });
+
+    console.log("History API:", historyRes);
+
+    const historyData = historyRes?.data;
+
+    if (Array.isArray(historyData)) {
+    setPayoutHistory(historyData);
+    } else if (historyData && typeof historyData === "object") {
+      setPayoutHistory([historyData]); // ✅ wrap single object into array
+    } else {
+      setPayoutHistory([]);
+    }
+
+  } catch (err) {
+    console.error("Payout API error:", err);
+  }
+};
+
+const getFilterPayload = () => {
+  if (overviewRange === "Today") {
+    return { filter: "today" };
+  }
+
+  if (overviewRange === "This Week") {
+    return { filter: "this_week" };
+  }
+
+  if (overviewRange === "This Month") {
+    return { filter: "this_month" };
+  }
+
+  if (overviewRange === "Custom" && customFrom && customTo) {
+    return {
+      start_date: customFrom,
+      end_date: customTo,
+    };
+  }
+
+  return { filter: "today" }; // fallback
+};
+
+  const fetchOverview = async () => {
+  try {
+    setLoading(true);
+
+    const payload = getFilterPayload();
+
+    const res = await getEarningsOverview({
+      user: 50,
+      ...payload,
+    });
+
+    if (res?.status) {
+      setOverviewData(res.data);
+    }
+  } catch (err) {
+    console.error("Earnings API error:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Live update from storage (other tabs)
   useEffect(() => {
@@ -189,189 +367,40 @@ const [activeTab, setActiveTab] = useState("overview");
     return sum;
   }, [normalizedOrders]);
 
-  // lifetime / totals
-  const lifetime = useMemo(() => {
-    const totalOrders = normalizedOrders.length;
-    const totalSales = normalizedOrders.reduce((s, o) => s + (o.amount || 0), 0);
-    return { totalOrders, totalSales };
-  }, [normalizedOrders]);
 
   // transactions for history => delivered/completed orders appear as transaction rows
-  const transactions = useMemo(() => {
-    return normalizedOrders
-      .filter((o) => {
-        const st = String(o.status || "").toLowerCase();
-        return st === "delivered" || st === "completed";
-      })
-      .map((o) => ({
-        date: o.placedAtISO,
-        id: o.id,
-        amount: o.amount,
-        paid: !!o.paidToMerchant,
-        paymentMode: o.payment || "Unknown",
-        items: o.items || [],
-      }))
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [normalizedOrders]);
+ 
 
   // history filtered/sorted
-  const historyRows = useMemo(() => {
-    let rows = transactions.slice();
-    if (historyStatus === "Paid") rows = rows.filter((r) => r.paid);
-    else if (historyStatus === "Pending") rows = rows.filter((r) => !r.paid);
-    if (historySort === "amount") rows = rows.sort((a, b) => b.amount - a.amount);
-    else rows = rows.sort((a, b) => new Date(b.date) - new Date(a.date));
-    return rows;
-  }, [transactions, historyStatus, historySort]);
+  
 
   // insights: hourly 0-23 aggregation for selected range
-  const insightsHourly = useMemo(() => {
-    // produce array length 24 with orders counts
-    let from = null;
-    let to = null;
-    const now = new Date();
-    if (insightsRange === "Today") {
-      from = startOfToday();
-      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
-    } else if (insightsRange === "This Week") {
-      from = startOfWeek();
-      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
-    } else if (insightsRange === "This Month") {
-      from = startOfMonth();
-      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
-    } else if (insightsRange === "Custom" && insightsCustomDate) {
-      const d = new Date(insightsCustomDate);
-      from = new Date(d);
-      from.setHours(0, 0, 0, 0);
-      to = new Date(d);
-      to.setHours(23, 59, 59, 999);
-    } else {
-      // default to today
-      from = startOfToday();
-      to = new Date(now.getTime() + 24 * 3600 * 1000 - 1);
-    }
 
-    // determine hourly bins across range — if range > 1 day we aggregate by 24-hour buckets across each day summed
-    const hours = Array.from({ length: 24 }).map((_, i) => ({ hour: `${i}`, orders: 0 }));
 
-    normalizedOrders.forEach((o) => {
-      const dt = new Date(o.placedAtISO);
-      if (dt >= from && dt <= to) {
-        const h = dt.getHours();
-        hours[h].orders += 1;
-      }
-    });
-
-    return hours;
-  }, [normalizedOrders, insightsRange, insightsCustomDate]);
 
   // marketing derived metrics (lightweight)
-  const marketing = useMemo(() => {
-    const customers = {};
-    normalizedOrders.forEach((o) => {
-      if (!o.customer) return;
-      customers[o.customer] = (customers[o.customer] || 0) + 1;
-    });
-    const totalOrders = normalizedOrders.length;
-    const repeat = Object.values(customers).filter((c) => c > 1).length;
-    const uniqueCustomers = Object.keys(customers).length;
-    // coupon usage if orders have coupon field
-    const couponCounts = {};
-    normalizedOrders.forEach((o) => {
-      const cp = o.coupon || o.promo || null;
-      if (cp) couponCounts[cp] = (couponCounts[cp] || 0) + 1;
-    });
-    return {
-      totalOrders,
-      repeatCustomers: repeat,
-      uniqueCustomers,
-      couponCounts,
-    };
-  }, [normalizedOrders]);
 
   // generate CSV for reports
-  const exportCSV = (rows, filename = "report.csv") => {
-    if (!rows || !rows.length) {
-      alert("No rows to export");
-      return;
-    }
-    const keys = Object.keys(rows[0]);
-    const csv = [keys.join(",")]
-      .concat(
-        rows.map((r) =>
-          keys
-            .map((k) =>
-              `"${String(r[k] === null || r[k] === undefined ? "" : r[k]).replace(/"/g, '""')}"`
-            )
-            .join(",")
-        )
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // generate printable PDF (opens new window for print)
-  const generatePDF = (title, htmlContent) => {
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    if (!w) {
-      alert("Popup blocked — allow popups to generate PDF");
-      return;
-    }
-    w.document.write(`
-      <html>
-        <head>
-          <title>${title}</title>
-          <style>
-            body { font-family: Arial, Helvetica, sans-serif; padding: 20px; color:#111 }
-            h1 { color: #f97316 }
-            table { width:100%; border-collapse: collapse; margin-top:10px }
-            th, td { border:1px solid #ddd; padding:8px; text-align:left }
-          </style>
-        </head>
-        <body>
-          <h1>${title}</h1>
-          ${htmlContent}
-        </body>
-      </html>
-    `);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 400);
-  };
+ 
 
   // -----------------------
   // Payout flow
   // -----------------------
-  const requestPayout = (amount) => {
-  amount = Number(amount);
+  const requestPayout = async () => {
+  try {
+    const res = await requestMerchantPayout({
+      user: 50,
+      send_request: true,
+    });
 
-  if (!amount || amount <= 0) {
-    alert("You cannot request a payout of ₹0. Please complete orders first.");
-    return;
+    if (res?.status) {
+      alert("Payout requested ✅");
+      fetchPayoutData(); // refresh
+    }
+  } catch (err) {
+    console.error(err);
   }
-
-  const next = loadPayoutRequests();
-  const id = `P${Date.now()}`;
-  const req = {
-    id,
-    amount,
-    requestedAt: new Date().toISOString(),
-    status: "Pending",
-  };
-
-  next.unshift(req);
-  savePayoutRequests(next);
-  setPayoutRequests(next);
-
-  alert(`Payout requested for ₹${amount}. Status: Pending`);
 };
-
 
   // Demo: admin approve first pending request
   const adminApproveFirst = () => {
@@ -438,7 +467,7 @@ const [activeTab, setActiveTab] = useState("overview");
       <div className="p-5 max-w-6xl mx-auto space-y-6">
        {/* Tabs */}
 <div className="flex flex-wrap gap-2 mb-5">
-  {["overview", "payouts", "history", "insights", "marketing", "reports"].map((tab) => (
+  {["overview", "payouts", "history", "insights"].map((tab) => (
     <button
       key={tab}
       onClick={() => setActiveTab(tab)}
@@ -506,108 +535,87 @@ const [activeTab, setActiveTab] = useState("overview");
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-orange-50 p-4 rounded-2xl">
                 <div className="text-sm text-gray-500">Orders</div>
-                <div className="text-2xl font-bold">{overviewTotals.ordersCount}</div>
+                <div className="text-2xl font-bold">{overviewData?.orders}</div>
               </div>
               <div className="bg-orange-50 p-4 rounded-2xl">
                 <div className="text-sm text-gray-500">Sales</div>
-                <div className="text-2xl font-bold">₹{overviewTotals.sales}</div>
+                <div className="text-2xl font-bold">₹{overviewData?.sales}</div>
               </div>
               <div className="bg-orange-50 p-4 rounded-2xl">
                 <div className="text-sm text-gray-500">Completed Revenue</div>
-                <div className="text-2xl font-bold">₹{overviewTotals.completedRevenue}</div>
+                <div className="text-2xl font-bold">₹{overviewData?.completed_revenue}</div>
               </div>
               <div className="bg-orange-50 p-4 rounded-2xl">
                 <div className="text-sm text-gray-500">Avg Order Value</div>
-                <div className="text-2xl font-bold">₹{overviewTotals.avgOrderValue}</div>
+                <div className="text-2xl font-bold">₹{overviewData?.avg}</div>
               </div>
             </div>
 
             {/* charts row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="bg-white p-4 rounded-2xl shadow">
                 <h4 className="font-semibold mb-2">Revenue Trend</h4>
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart
-                    data={(() => {
-                      // build 7-day trend ending today for "This Week", month for "This Month", else show last 7 days
-                      const now = new Date();
-                      const days = [];
-                      const daysBack = overviewRange === "This Month" ? 30 : 7;
-                      for (let i = daysBack - 1; i >= 0; i--) {
-                        const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
-                        const label = `${d.getDate()}/${d.getMonth() + 1}`;
-                        const dayStart = new Date(d); dayStart.setHours(0,0,0,0);
-                        const dayEnd = new Date(d); dayEnd.setHours(23,59,59,999);
-                        const total = normalizedOrders
-                          .filter((o) => {
-                            const t = new Date(o.placedAtISO).getTime();
-                            return t >= dayStart.getTime() && t <= dayEnd.getTime();
-                          })
-                          .reduce((s, x) => s + (x.amount || 0), 0);
-                        days.push({ date: label, earnings: total });
-                      }
-                      return days;
-                    })()}
+                    data={overviewData?.revenue_trend?.map(item => ({
+                    date: new Date(item.date).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    }),
+                    earnings: item.sales
+                  }))}
+                  margin={{ top: 10, right: 20, left: 0, bottom: 20 }}
                   >
-                    <XAxis dataKey="date" />
+                    <XAxis
+                    dataKey="date" // or "day"
+                    tick={{ fontSize: 11 }}
+                    interval="preserveStartEnd"
+                    minTickGap={20}
+                  />
                     <YAxis />
                     <Tooltip />
-                    <Line type="monotone" dataKey="earnings" stroke="#f97316" strokeWidth={2} dot={false} />
+                    <Line
+                    type="monotone"
+                    dataKey="earnings"
+                    stroke="#f97316"
+                    strokeWidth={3}
+                    dot={{ r: 3 }}
+                  />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
 
               <div className="bg-white p-4 rounded-2xl shadow">
-                <h4 className="font-semibold mb-2">Orders Trend (7-day)</h4>
+                <h4 className="font-semibold mb-2">Orders Trend</h4>
                 <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={(() => {
-                    const now = new Date();
-                    const days = [];
-                    for (let i = 6; i >= 0; i--) {
-                      const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
-                      const label = `${d.getDate()}/${d.getMonth() + 1}`;
-                      const dayStart = new Date(d); dayStart.setHours(0,0,0,0);
-                      const dayEnd = new Date(d); dayEnd.setHours(23,59,59,999);
-                      const total = normalizedOrders.filter((o) => {
-                        const t = new Date(o.placedAtISO).getTime();
-                        return t >= dayStart.getTime() && t <= dayEnd.getTime();
-                      }).length;
-                      days.push({ day: label, orders: total });
-                    }
-                    return days;
-                  })()}>
-                    <XAxis dataKey="day" />
+                  <BarChart 
+                  data={overviewData?.order_trend?.map(item => ({
+                  day: new Date(item.date).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                  }),
+                  orders: item.orders
+                }))}
+                margin={{ top: 10, right: 20, left: 0, bottom: 20 }}
+                >
+                    <XAxis
+                      dataKey="day" // or "day"
+                      tick={{ fontSize: 11 }}
+                      interval="preserveStartEnd"
+                      minTickGap={20}
+                    />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="orders" fill="#FF7F50" />
+                    <Bar
+                    dataKey="orders"
+                    fill="#FF7F50"
+                    radius={[6, 6, 0, 0]}
+                  />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-4 rounded-2xl shadow">
-                <h4 className="font-semibold mb-2">Customer Distribution</h4>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Repeat", value: marketing.repeatCustomers || 0 },
-                        { name: "Unique", value: marketing.uniqueCustomers || 0 },
-                      ]}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={60}
-                      label
-                    >
-                      {[{},{ }].map((_, idx) => (
-                        <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              
             </div>
           </div>
         </section>
@@ -620,26 +628,26 @@ const [activeTab, setActiveTab] = useState("overview");
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-orange-50 p-4 rounded-2xl">
                 <div className="text-sm text-gray-500">Pending Payouts</div>
-                <div className="text-2xl font-bold">₹{pendingPayoutsAmount || 0}</div>
+                <div className="text-2xl font-bold">₹{pendingAmount}</div>
               </div>
               <div className="bg-orange-50 p-4 rounded-2xl">
                 <div className="text-sm text-gray-500">Available for Request</div>
-                <div className="text-2xl font-bold">₹{pendingPayoutsAmount || 0}</div>
+                <div className="text-2xl font-bold">₹{pendingAmount}</div>
               </div>
               <div className="bg-orange-50 p-4 rounded-2xl">
                 <div className="text-sm text-gray-500">Lifetime Sales</div>
-                <div className="text-2xl font-bold">₹{lifetime.totalSales}</div>
+                <div className="text-2xl font-bold">₹{lifetimeSales}</div>
               </div>
             </div>
 
             <div className="flex gap-3 items-center">
               <button
-  onClick={() => requestPayout(pendingPayoutsAmount)}
-  disabled={!pendingPayoutsAmount || pendingPayoutsAmount <= 0}
+  onClick={requestPayout}
+  disabled={!pendingAmount}
   className={`px-4 py-2 rounded-xl text-white 
-    ${pendingPayoutsAmount > 0 ? "bg-orange-500" : "bg-gray-400 cursor-not-allowed"}`}
+    ${pendingAmount > 0 ? "bg-orange-500" : "bg-gray-400 cursor-not-allowed"}`}
 >
-  Request Payout (₹{pendingPayoutsAmount || 0})
+  Request Payout (₹{pendingAmount})
 </button>
 
               <button
@@ -653,24 +661,40 @@ const [activeTab, setActiveTab] = useState("overview");
 
             <div>
               <h4 className="font-semibold mb-2">Payout Requests</h4>
-              {payoutRequests.length === 0 ? (
+              {payoutHistory.length === 0 ? (
                 <div className="text-gray-500">No payout requests yet.</div>
               ) : (
                 <div className="space-y-2">
-                  {payoutRequests.map((r) => (
-                    <div key={r.id} className="flex justify-between items-center p-3 border rounded">
-                      <div>
-                        <div className="font-semibold">Request {r.id}</div>
-                        <div className="text-sm text-gray-600">₹{r.amount} • {new Date(r.requestedAt).toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className={`px-3 py-1 rounded-full text-sm ${r.status === "Pending" ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}`}>
-                          {r.status}
-                        </div>
-                        {r.status === "Completed" && r.processedAt && <div className="text-xs text-gray-500 mt-1">Processed: {new Date(r.processedAt).toLocaleString()}</div>}
-                      </div>
-                    </div>
-                  ))}
+                 <div className="overflow-x-auto">
+  <table className="min-w-full table-auto">
+    <thead className="bg-gray-50">
+      <tr>
+        <th className="px-4 py-2 text-left">Date</th>
+        <th className="px-4 py-2 text-left">Amount</th>
+        <th className="px-4 py-2 text-left">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {payoutHistory.map((item, i) => (
+       <tr key={i} className="border-b">
+        <td className="px-4 py-2">
+          {item.end_date ? new Date(item.end_date).toLocaleString() : "-"}
+        </td>
+
+        <td className="px-4 py-2">
+          ₹{item.paid_amount || 0}
+        </td>
+
+        <td className="px-4 py-2">
+          <span className="px-2 py-1 rounded text-sm bg-yellow-100 text-yellow-700">
+            {item.transaction_id ? "Completed" : "Pending"}
+          </span>
+        </td>
+      </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
                 </div>
               )}
             </div>
@@ -703,20 +727,27 @@ const [activeTab, setActiveTab] = useState("overview");
 
               <button
                 onClick={() => {
-                  if (!historyRows.length) { alert("No transactions to export"); return; }
-                  exportCSV(historyRows.map(r => ({
-                    date: r.date,
-                    id: r.id,
-                    amount: r.amount,
-                    paid: r.paid ? "Paid" : "Pending",
-                    paymentMode: r.paymentMode
-                  })), "transactions.csv");
+                  if (!historyData.length) { alert("No transactions to export"); return; }
+                  exportCSV(
+                  historyData.map(item => ({
+                  date: item.created_at,
+                  order_id: item.order_id,
+                  amount: item.amount,
+                  status: item.status,
+                  payment_mode: item.payment_mode
+                })),
+                "history.csv"
+              );
                 }}
                 className="ml-auto px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"
               >
                 <Download size={16} /> Export
               </button>
             </div>
+
+          <div className="text-sm text-gray-600">
+            Total Orders: {totalOrders}
+          </div>
 
             <div className="overflow-x-auto bg-white p-4 rounded-2xl shadow">
               <table className="min-w-full table-auto">
@@ -730,23 +761,45 @@ const [activeTab, setActiveTab] = useState("overview");
                   </tr>
                 </thead>
                 <tbody>
-                  {historyRows.map((tx) => (
-                    <tr key={tx.id} className="border-b hover:bg-gray-50">
-                      <td className="py-2 px-4">{new Date(tx.date).toLocaleString()}</td>
-                      <td className="py-2 px-4">{tx.id}</td>
-                      <td className="py-2 px-4">₹{tx.amount}</td>
-                      <td className="py-2 px-4">{tx.paid ? "✅ Paid" : "🕒 Pending"}</td>
-                      <td className="py-2 px-4">{tx.paymentMode}</td>
-                    </tr>
-                  ))}
-                </tbody>
+                {historyData.map((item, i) => (
+                  <tr key={i} className="border-b hover:bg-gray-50">
+                    <td className="py-2 px-4">
+                      {item.created_at
+                        ? new Date(item.created_at).toLocaleString()
+                        : "-"}
+                    </td>
+
+                    <td className="py-2 px-4">
+                      {item.order_id || "-"}
+                    </td>
+
+                    <td className="py-2 px-4">
+                      ₹{item.amount || 0}
+                    </td>
+
+                    <td className="py-2 px-4">
+                      <span className={`px-2 py-1 rounded text-sm ${
+                        item.status === "completed"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {item.status || "Pending"}
+                      </span>
+                    </td>
+
+                    <td className="py-2 px-4">
+                      {item.payment_mode || "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
               </table>
             </div>
           </div>
         </section>
 
         {/* ====== Insights ====== */}
-      <section id="section-insights " className={`${activeTab === "insights" ? "" : "hidden"}`}>
+     <section id="section-insights" className={`${activeTab === "insights" ? "" : "hidden"}`}>
           <div className="bg-white p-4 rounded-2xl shadow space-y-4">
            <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-lg font-semibold">Insights</h3>
@@ -766,101 +819,29 @@ const [activeTab, setActiveTab] = useState("overview");
               <div className="bg-white p-4 rounded-2xl shadow">
                 <h4 className="font-semibold mb-2">Orders per Hour (0–23)</h4>
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={insightsHourly.map(h => ({ hour: `${h.hour}:00`, orders: h.orders }))}>
-                    <XAxis dataKey="hour" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="orders" fill="#FF7F50" />
-                  </BarChart>
+                 <BarChart data={insightsData?.hourly_orders || []}>
+                  <XAxis dataKey="hour" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="orders" fill="#FF7F50" />
+                </BarChart>
                 </ResponsiveContainer>
               </div>
 
               <div className="bg-white p-4 rounded-2xl shadow">
                 <h4 className="font-semibold mb-2">Quick Insights</h4>
                 <ul className="text-gray-700 space-y-1">
-                  <li>Orders in range: {insightsHourly.reduce((s, h) => s + h.orders, 0)}</li>
-                  <li>Peak hour: {(() => {
-                    const peak = insightsHourly.reduce((p, c) => (c.orders > (p.orders||0) ? c : p), {orders:0});
-                    return peak && peak.orders ? `${peak.hour}:00 (${peak.orders})` : "—";
-                  })()}</li>
-                  <li>Average order value (delivered): ₹{(() => {
-                    const delivered = normalizedOrders.filter(o => (String(o.status||"").toLowerCase()==="delivered"||String(o.status||"").toLowerCase()==="completed") && inRange(o.placedAtISO, insightsRange==="Custom" && insightsCustomDate ? new Date(new Date(insightsCustomDate).setHours(0,0,0,0)) : insightsRange==="Today" ? startOfToday() : insightsRange==="ThisWeek" ? startOfWeek() : startOfMonth(), new Date()) );
-                    if (!delivered.length) return "—";
-                    const sum = delivered.reduce((s,x)=>s+(x.amount||0),0);
-                    return Math.round(sum/delivered.length);
-                  })()}</li>
-                </ul>
+                <li>Total Orders: {insightsData?.total_orders || 0}</li>
+                <li>Total Sales: ₹{insightsData?.total_sales || 0}</li>
+                <li>Avg Order Value: ₹{insightsData?.avg_order_value || 0}</li>
+                <li>Peak Hour: {insightsData?.peak_hour || "-"}</li>
+              </ul>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ====== Marketing ====== */}
-        <section id="section-marketing " className={`${activeTab === "marketing" ? "" : "hidden"}`}>
-          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
-            <h3 className="text-lg font-semibold">Marketing</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-orange-50 rounded-2xl">
-                <div className="text-sm text-gray-600">Total Orders</div>
-                <div className="text-2xl font-bold">{marketing.totalOrders}</div>
-              </div>
-              <div className="p-4 bg-orange-50 rounded-2xl">
-                <div className="text-sm text-gray-600">Unique Customers</div>
-                <div className="text-2xl font-bold">{marketing.uniqueCustomers}</div>
-              </div>
-              <div className="p-4 bg-orange-50 rounded-2xl">
-                <div className="text-sm text-gray-600">Repeat Customers</div>
-                <div className="text-2xl font-bold">{marketing.repeatCustomers}</div>
-              </div>
-            </div>
 
-            <div>
-              <h4 className="font-semibold">Coupon / Promo Usage (derived)</h4>
-              {Object.keys(marketing.couponCounts).length === 0 ? (
-                <div className="text-gray-500">No coupon or promo usage data available in orders.</div>
-              ) : (
-                <ul className="space-y-1 text-gray-700">
-                  {Object.entries(marketing.couponCounts).map(([k, v]) => (
-                    <li key={k}>{k} — {v} uses</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* ====== Reports ====== */}
-        <section id="section-reports " className={`${activeTab === "reports" ? "" : "hidden"}`}>
-          <div className="bg-white p-4 rounded-2xl shadow space-y-4">
-            <h3 className="text-lg font-semibold">Reports</h3>
-
-           <div className="flex flex-wrap items-center gap-3">
-              <select value={reportRange} onChange={(e)=>setReportRange(e.target.value)} className="p-2 border rounded">
-                <option>Today</option>
-                <option>This Week</option>
-                <option>This Month</option>
-                <option>All Time</option>
-              </select>
-
-              <button onClick={() => {
-                // generate CSV of selected range
-                const range = reportRange === "All Time" ? "This Month" : reportRange;
-                const { list } = computeRangeTotals(reportRange, customFrom, customTo);
-                const rows = list.map(o => ({ id: o.id, date: o.placedAtISO, status: o.status, amount: o.amount, customer: o.customer || "" }));
-                exportCSV(rows, `orders-report-${reportRange.replace(/\s+/g,"-").toLowerCase()}.csv`);
-              }} className="px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"><Download size={16} /> Export CSV</button>
-
-              <button onClick={() => {
-                // generate a printable report
-                const { list } = computeRangeTotals(reportRange, customFrom, customTo);
-                const html = `<table><thead><tr><th>Order</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${list.map(o=>`<tr><td>${o.id}</td><td>${new Date(o.placedAtISO).toLocaleString()}</td><td>₹${o.amount}</td><td>${o.status}</td></tr>`).join("")}</tbody></table>`;
-                generatePDF(`Orders report — ${reportRange}`, html);
-              }} className="px-3 py-2 bg-white border rounded-xl">Generate PDF</button>
-            </div>
-
-            <div className="text-sm text-gray-600">Tip: Use exports to send reports to admin or accounting.</div>
-          </div>
-        </section>
       </div>
     </div>
   );

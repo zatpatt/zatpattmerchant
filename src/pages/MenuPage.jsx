@@ -16,6 +16,17 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import {
+  getMerchantMenu,
+  addMerchantMenu,
+  getMenuCategoryList,
+  getMenuDropdownCategories,
+  addMenuCategory,
+  addOffer,
+  getOffers,
+  editOffer,
+} from "../services/menuApi";
+
 
 /**
  * MenuPage.jsx
@@ -43,7 +54,6 @@ import {
 
 const CATS_KEY = "merchant_categories";
 const ITEMS_KEY = "merchant_items";
-const COUPONS_KEY = "merchant_coupons";
 
 /* ---------- helpers ---------- */
 const onlyDigits = (v = "") => String(v || "").replace(/\D/g, "");
@@ -138,13 +148,7 @@ export default function MenuPage() {
   const [activeTab, setActiveTab] = useState("items");
 
   // persisted data
-  const [categories, setCategories] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(CATS_KEY) || "[]");
-    } catch {
-      return [];
-    }
-  });
+
   const [items, setItems] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(ITEMS_KEY) || "[]");
@@ -152,13 +156,7 @@ export default function MenuPage() {
       return [];
     }
   });
-  const [coupons, setCoupons] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(COUPONS_KEY) || "[]");
-    } catch {
-      return [];
-    }
-  });
+  
 
   // local UI states
   const [newCategory, setNewCategory] = useState("");
@@ -172,54 +170,242 @@ export default function MenuPage() {
   const [editing, setEditing] = useState(null); // object clone of item being edited
   const [showEditModal, setShowEditModal] = useState(false);
   const [couponState, setCouponState] = useState(emptyCoupon);
+  const [menuData, setMenuData] = useState([]);
+  const [menuLoaded, setMenuLoaded] = useState(false);
+  const [categoryList, setCategoryList] = useState([]);
+  const [dropdownCategories, setDropdownCategories] = useState([]);
+  const [editOfferData, setEditOfferData] = useState(null);
+  const [showEditOfferModal, setShowEditOfferModal] = useState(false);
+
+  const handleEditOffer = async () => {
+  try {
+    const payload = {
+      promotion_id: editOfferData.promotion_id,
+      user: 51,
+      promo_type: editOfferData.promo_type,
+      value: editOfferData.value,
+      min_order_amount: Number(editOfferData.min_order_amount),
+      start_date: editOfferData.start_date,
+      end_date: editOfferData.end_date,
+      usage_limit: Number(editOfferData.usage_limit),
+      budget: Number(editOfferData.budget),
+      region: null,
+    };
+
+    const res = await editOffer(payload);
+
+    if (res?.status) {
+      alert("Offer updated successfully");
+      setShowEditOfferModal(false);
+      fetchOffers();
+    }
+  } catch (err) {
+    console.error("Edit error:", err);
+  }
+};
+
+  const fetchOffers = async () => {
+  try {
+    const res = await getOffers({ user: 51 });
+
+    console.log("Offers API:", res);
+
+    if (res?.status) {
+      setOffers(res.data || []);
+    }
+  } catch (err) {
+    console.error("Offers error:", err);
+  }
+};
+
+useEffect(() => {
+  if (activeTab === "promotions") {
+    fetchOffers();
+  }
+}, [activeTab]);
+
+const handleAddOffer = async () => {
+  try {
+    const payload = {
+      user: 51,
+      promo_type: offerForm.promo_type,
+      value: offerForm.value || null,
+      min_order_amount: Number(offerForm.min_order_amount),
+      start_date: offerForm.start_date,
+      end_date: offerForm.end_date,
+      usage_limit: Number(offerForm.usage_limit),
+      budget: Number(offerForm.budget),
+      region: null,
+    };
+
+    console.log("Add Offer Payload:", payload);
+
+    const res = await addOffer(payload);
+
+    if (res?.status) {
+      alert("Offer added successfully");
+
+      fetchOffers();
+
+      setOfferForm({
+        promo_type: "discount",
+        value: "",
+        min_order_amount: "",
+        start_date: "",
+        end_date: "",
+        usage_limit: "",
+        budget: "",
+      });
+    }
+  } catch (err) {
+    console.error("Add offer error:", err);
+  }
+};
+
+  const handleAddCategory = async () => {
+  try {
+    if (!newCategory.trim()) {
+      return alert("Category name required");
+    }
+
+    const res = await addMenuCategory({
+      user: 51,
+      name: newCategory,
+    });
+
+    console.log("Add Category API:", res);
+
+    if (res?.status) {
+      alert("Category added successfully");
+
+      setNewCategory("");
+
+      // reload categories
+      fetchCategories();
+    }
+  } catch (err) {
+    console.error("Add category error:", err);
+  }
+};
+
+// Category PAGE list
+const fetchCategories = async () => {
+  try {
+    const res = await getMenuCategoryList({ user: 51 });
+
+    if (res?.status) {
+      setCategoryList(res.data || []);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+// Dropdown categories
+const fetchDropdownCategories = async () => {
+  try {
+    const res = await getMenuDropdownCategories({ user: 51 });
+
+    if (res?.status) {
+      setDropdownCategories(res.data || []);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+useEffect(() => {
+  fetchCategories();
+  fetchDropdownCategories();
+}, []);
+
+  const handleAddMenu = async () => {
+  try {
+    const payload = {
+      category: newItemState.category,
+      menu_name: newItemState.name,
+      menu_description: newItemState.desc,
+      is_veg: true, // or based on UI
+      menu_price: newItemState.mrp,
+      discounted_price: newItemState.price,
+      label: newItemState.tags || "normal",
+      user: 51,
+
+      // VERY IMPORTANT 👇
+      manu_image: newItemState.file, // fix below
+    };
+
+    const res = await addMerchantMenu(payload);
+
+    console.log("Add menu response:", res);
+
+    if (res?.status) {
+      alert("Menu added successfully");
+
+      // reset form
+      setNewItemState(emptyItem);
+
+      // reload list
+      fetchMenu();
+    }
+  } catch (err) {
+    console.error("Add menu error:", err);
+  }
+};
+
+const fetchMenu = async () => {
+  try {
+    const res = await getMerchantMenu({
+      user: 51,
+    });
+
+    console.log("Menu API:", res);
+
+    if (res?.status) {
+      const data = res?.data;
+
+      if (Array.isArray(data)) {
+        setMenuData(data);
+      } else if (Array.isArray(data?.items)) {
+        setMenuData(data.items);
+      } else {
+        setMenuData([]);
+      }
+    }
+  } catch (err) {
+    console.error("Menu API error:", err);
+    setMenuData([]);
+  }
+};
+  
+useEffect(() => {
+  if (activeTab === "items" && !menuLoaded) {
+    fetchMenu();
+    setMenuLoaded(true);
+  }
+}, [activeTab]);
 
   // ensure localStorage sync on changes
-  useEffect(() => {
-    localStorage.setItem(CATS_KEY, JSON.stringify(categories));
-  }, [categories]);
+
   useEffect(() => {
     localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
   }, [items]);
-  useEffect(() => {
-    localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
-  }, [coupons]);
+
 
   // live update if other tabs / windows change storage
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === CATS_KEY) {
-        setCategories(JSON.parse(e.newValue || "[]"));
-      }
+    const onStorage = (e) => {      
       if (e.key === ITEMS_KEY) {
         setItems(JSON.parse(e.newValue || "[]"));
       }
-      if (e.key === COUPONS_KEY) {
-        setCoupons(JSON.parse(e.newValue || "[]"));
-      }
+      
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   /* ---------- Category CRUD ---------- */
-  const addCategory = () => {
-    const name = (newCategory || "").trim();
-    if (!name) return alert("Category name required");
-    if (categories.some((c) => c.name.toLowerCase() === name.toLowerCase()))
-      return alert("Category already exists");
-    const cat = { id: Date.now(), name, visible: true };
-    setCategories([cat, ...categories]);
-    setNewCategory("");
-  };
-  const toggleCategoryVisibility = (id) =>
-    setCategories(
-      categories.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c))
-    );
-  const deleteCategory = (id) => {
-    if (!confirm("Delete category? Items under it will keep category string.")) return;
-    setCategories(categories.filter((c) => c.id !== id));
-  };
-
+  
   /* ---------- Items CRUD ---------- */
   const validateRequiredItem = (it) => {
     if (!it.name.trim()) return "Name required";
@@ -360,65 +546,57 @@ export default function MenuPage() {
   };
 
   /* ---------- Promotions (coupons) ---------- */
-  const addCoupon = () => {
-    const c = { ...couponState };
-    if (!c.code.trim()) return alert("Provide coupon code");
-    if (c.kind !== "percent" && c.kind !== "flat") return alert("Invalid kind");
-    if (!c.value || Number(c.value) <= 0) return alert("Value required");
-    const exists = coupons.some((x) => x.code.toLowerCase() === c.code.toLowerCase());
-    if (exists) return alert("Coupon code exists");
-    const toSave = { ...c, id: Date.now(), value: Number(c.value || 0), minOrder: Number(c.minOrder || 0) };
-    setCoupons([toSave, ...coupons]);
-    setCouponState(emptyCoupon);
-  };
-  const deleteCoupon = (id) => {
-    if (!confirm("Delete coupon?")) return;
-    setCoupons(coupons.filter((c) => c.id !== id));
-  };
+  const [offers, setOffers] = useState([]);
+  const [offerForm, setOfferForm] = useState({
+  promo_type: "discount",
+  value: "",
+  min_order_amount: "",
+  start_date: "",
+  end_date: "",
+  usage_limit: "",
+  budget: "",
+  });
 
   /* ---------- Derived data / filters / sorting ---------- */
  const visibleCategoryNames = useMemo(
-  () => categories.filter((c) => c.visible).map((c) => c.name),
-  [categories]
+  () => categoryList.map((c) => c.name || c.category_name),
+  [categoryList]
 );
 
 const filteredItems = useMemo(() => {
-  let list = items.slice();
+  let list = menuData.slice();
 
-  // hide items in hidden categories
-  list = list.filter((it) =>
-    it.category ? visibleCategoryNames.includes(it.category) : true
-  );
-
-  if (filterType !== "all") list = list.filter((it) => it.type === filterType);
-  if (filterCategory) list = list.filter((it) => it.category === filterCategory);
-
-  if (searchQ.trim()) {
-    const q = searchQ.trim().toLowerCase();
-    list = list.filter((it) => {
-      const hay = `${it.name} ${it.tags || ""} ${it.category || ""} ${it.desc || ""}`.toLowerCase();
-      return hay.includes(q) || String(it.id).toLowerCase().includes(q);
-    });
+  if (filterType !== "all") {
+    list = list.filter((it) => (it.type || "item") === filterType);
   }
 
-  if (sortKey === "name_asc")
-    list.sort((a, b) => a.name.localeCompare(b.name));
-  else if (sortKey === "price_desc")
-    list.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
-  else if (sortKey === "price_asc")
-    list.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+  if (filterCategory) {
+   list = list.filter((it) =>
+  String(it.category) === String(filterCategory)
+);
+  }
+
+  if (searchQ.trim()) {
+    const q = searchQ.toLowerCase();
+    list = list.filter((it) =>
+      `${it.menu_name} ${it.category}`.toLowerCase().includes(q)
+    );
+  }
 
   return list;
-}, [items, filterType, filterCategory, searchQ, sortKey, visibleCategoryNames]);
+}, [menuData, filterType, filterCategory, searchQ]);
 
   /* ---------- Insights ---------- */
   const STOCK_THRESHOLD = 5;
   const lowStock = items.filter((i) => Number(i.stock || 0) < STOCK_THRESHOLD && i.type !== "service");
-  const categoryPerformance = categories.map((cat) => {
-    const list = items.filter((it) => it.category === cat.name);
-    const revenue = list.reduce((s, it) => s + (Number(it.revenue || 0)), 0);
-    return { category: cat.name, revenue };
-  });
+  const categoryPerformance = categoryList.map((cat) => {
+  const name = cat.name || cat.category_name;
+
+  const list = items.filter((it) => it.category === name);
+  const revenue = list.reduce((s, it) => s + (Number(it.revenue || 0)), 0);
+
+  return { category: name, revenue };
+});
 
   const topSelling = [...items]
     .filter((i) => Number(i.revenue || 0) > 0)
@@ -444,11 +622,10 @@ const filteredItems = useMemo(() => {
       <div className="bg-white sticky top-0 z-20 shadow-sm">
         <div className="max-w-6xl mx-auto flex gap-2 px-3 py-2 overflow-x-auto">
           {[
-            { id: "items", label: "All Items" },
+            { id: "items", label: "All Menus" },
             { id: "categories", label: "Categories" },
             { id: "add", label: "Add Item" },
-            { id: "add-service", label: "Add Service" },
-            { id: "add-allinone", label: "Add All-in-one" },
+            { id: "add-service", label: "Add Service" },            
             { id: "promotions", label: "Promotions" },
             { id: "insights", label: "Insights" },
           ].map((t) => (
@@ -464,12 +641,12 @@ const filteredItems = useMemo(() => {
       </div>
 
       <div className="max-w-6xl mx-auto p-5 space-y-6">
-       {/* ===== All Items ===== */}
+       {/* ===== All Menus ===== */}
 {activeTab === "items" && (
   <div className="bg-white p-4 rounded-2xl shadow">
 
     {/* Title */}
-    <h2 className="text-lg font-semibold mb-3">All Items</h2>
+    <h2 className="text-lg font-semibold mb-3">All Menus</h2>
 
     {/* MOBILE FRIENDLY FILTERS */}
     <div className="space-y-3">
@@ -498,8 +675,7 @@ const filteredItems = useMemo(() => {
         >
           <option value="all">All Types</option>
           <option value="item">Items</option>
-          <option value="service">Services</option>
-          <option value="allinone">All-in-one</option>
+          <option value="service">Services</option>          
         </select>
 
         <select
@@ -508,11 +684,14 @@ const filteredItems = useMemo(() => {
           className="px-3 py-2 border rounded-xl text-sm min-w-[140px]"
         >
           <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.name}>
-              {c.name}{c.visible ? "" : " (hidden)"}
-            </option>
-          ))}
+         {dropdownCategories.map((cat, index) => (
+          <option
+            key={cat.id || index}
+            value={cat.id || cat.category_id}
+          >
+            {cat.name || cat.category_name}
+          </option>
+        ))}
         </select>
 
         <select
@@ -563,12 +742,12 @@ const filteredItems = useMemo(() => {
       {filteredItems.length === 0 ? (
         <div className="text-gray-500 p-6 text-center">No items found</div>
       ) : (
-        filteredItems.map((it) => (
-          <div key={it.id} className="flex items-center justify-between p-4 rounded-xl shadow-sm">
+        filteredItems.map((it, index) => (
+  <div key={it.id || it.menu_id || index} className="flex items-center justify-between p-4 rounded-xl shadow-sm">
             <div className="flex items-center gap-4 flex-1">
-  {it.image ? (
+  {it.manu_image ? (
     <img
-      src={it.image}
+      src={it.manu_image}
       alt="img"
       className="w-16 h-16 rounded object-cover"
     />
@@ -579,18 +758,31 @@ const filteredItems = useMemo(() => {
   )}
 
   <div>
-    <div className="font-semibold">
-      {it.name}
-      <span className="text-xs text-gray-500 ml-2">[{it.type}]</span>
-    </div>
+    <div>
+  <div className="font-semibold">
+    {it.menu_name}
+  </div>
 
-    <div className="text-sm text-gray-500">
-      {it.category} • {it.tags || "—"}
-    </div>
+  <div className="text-sm text-gray-500">
+    {it.category}
+  </div>
+
+  <div className="mt-1 flex items-center gap-2">
+    <span className="text-lg font-bold">
+      ₹{it.discounted_price || it.menu_price}
+    </span>
+
+    {it.discounted_price && (
+      <span className="line-through text-gray-500 text-sm">
+        ₹{it.menu_price}
+      </span>
+    )}
+  </div>
+</div>
 
     {it.type !== "service" && (
       <div className="mt-1 flex items-center gap-2">
-        <span className="text-lg font-bold">₹{it.price}</span>
+        <span className="text-lg font-bold">₹{it.discounted_price || it.menu_price}</span>
         {it.mrp ? (
           <span className="line-through text-gray-500 text-sm">
             ₹{it.mrp}
@@ -654,7 +846,7 @@ const filteredItems = useMemo(() => {
             <h2 className="text-lg font-semibold">Categories</h2>
             <div className="flex gap-2">
               <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="New category name" className="flex-1 px-3 py-2 border rounded-xl" />
-              <button onClick={addCategory} className="px-4 py-2 bg-orange-500 text-white rounded-xl"><Plus /> Add</button>
+              <button onClick={handleAddCategory} className="px-4 py-2 bg-orange-500 text-white rounded-xl"><Plus /> Add</button>
               <label className="bg-amber-400 text-white px-3 py-2 rounded-xl text-sm cursor-pointer">
                 Import
                 <input type="file" accept=".json" hidden onChange={(e)=>{ if (!e.target.files?.[0]) return; importJSON(e.target.files[0], "categories"); }} />
@@ -662,20 +854,17 @@ const filteredItems = useMemo(() => {
             </div>
 
             <div className="space-y-2">
-              {categories.length === 0 ? <div className="text-gray-500">No categories yet</div> : categories.map((c) => (
-                <div key={c.id} className="flex items-center justify-between p-3 border rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="font-medium">{c.name}</div>
-                    <div className="text-xs text-gray-500">({items.filter(it=>it.category===c.name).length} items)</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={()=>toggleCategoryVisibility(c.id)} className="px-3 py-1 border rounded-xl text-sm">
-                      {c.visible ? "Hide" : "Unhide"}
-                    </button>
-                    <button onClick={()=>deleteCategory(c.id)} className="px-3 py-1 border rounded-xl text-sm text-red-600"><Trash2 /></button>
+              {categoryList.length === 0 ? (
+              <div className="text-gray-500">No categories yet</div>
+            ) : (
+              categoryList.map((c, index) => (
+                <div key={c.id || index} className="flex items-center justify-between p-3 border rounded-xl">
+                  <div className="font-medium">
+                    {c.name || c.category_name}
                   </div>
                 </div>
-              ))}
+              ))
+            )}
             </div>
           </div>
         )}
@@ -698,19 +887,37 @@ const filteredItems = useMemo(() => {
 
             <select value={newItemState.category} onChange={(e)=>setNewItemState(s=>({...s, category: e.target.value}))} className="w-full p-2 border rounded-xl mt-2">
               <option value="">Select Category</option>
-              {categories.map(c=> <option key={c.id} value={c.name}>{c.name}</option>)}
+             {dropdownCategories.map((cat, index) => (
+              <option
+                key={cat.id || index}
+                value={cat.id || cat.category_id}
+              >
+                {cat.name || cat.category_name}
+              </option>
+            ))}
             </select>
 
             <div className="mt-2">
               <label className="w-full border p-2 rounded-xl flex items-center justify-between cursor-pointer">
                 <span>{newItemState.image ? "Image selected" : "Upload photo"}</span>
-                <input type="file" accept="image/*" hidden onChange={(e)=>{ if (!e.target.files?.[0]) return; setNewItemState(s=>({...s, image: URL.createObjectURL(e.target.files[0])})); }} />
+                <input type="file" accept="image/*" hidden 
+                onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                setNewItemState((s) => ({
+                  ...s,
+                  image: URL.createObjectURL(file), // preview
+                  file: file, // ✅ ACTUAL FILE
+                }));
+              }}
+              />
               </label>
               {newItemState.image && <img src={newItemState.image} alt="preview" className="mt-2 w-28 h-28 object-cover rounded" />}
             </div>
 
             <div className="mt-3 flex gap-2">
-              <button onClick={()=>addNewItem({...newItemState, type:"item"})} className="px-4 py-2 bg-orange-500 text-white rounded-xl">Save Item</button>
+              <button onClick={handleAddMenu} className="px-4 py-2 bg-orange-500 text-white rounded-xl">Save Item</button>
               <button onClick={()=>setNewItemState(emptyItem)} className="px-4 py-2 border rounded-xl">Reset</button>
             </div>
           </div>
@@ -720,14 +927,23 @@ const filteredItems = useMemo(() => {
         {activeTab === "add-service" && (
           <div className="bg-white p-4 rounded-2xl shadow">
             <h2 className="text-lg font-semibold">Add New Service</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+               <div className="bg-white p-4 rounded-2xl shadow">
+            <h2 className="text-lg font-semibold">COMING SOON!!!</h2>
+            {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
               <input placeholder="Service name" value={newServiceState.name} onChange={(e)=>setNewServiceState(s=>({...s, name:e.target.value}))} className="p-2 border rounded-xl" />
               <input placeholder="Service price (₹)" value={newServiceState.price} onChange={(e)=>setNewServiceState(s=>({...s, price: onlyDigits(e.target.value)}))} className="p-2 border rounded-xl" />
               <input placeholder="Time required (minutes)" value={newServiceState.duration} onChange={(e)=>setNewServiceState(s=>({...s, duration: onlyDigits(e.target.value)}))} className="p-2 border rounded-xl" />
               <input placeholder="Max slots / day" value={newServiceState.slots} onChange={(e)=>setNewServiceState(s=>({...s, slots: onlyDigits(e.target.value)}))} className="p-2 border rounded-xl" />
               <select value={newServiceState.category} onChange={(e)=>setNewServiceState(s=>({...s, category: e.target.value}))} className="p-2 border rounded-xl">
                 <option value="">Select Category</option>
-                {categories.map(c=> <option key={c.id} value={c.name}>{c.name}</option>)}
+               {categoryList.map((cat, index) => (
+                <option
+                  key={cat.id || index}
+                  value={cat.id || cat.category_id}
+                >
+                  {cat.name || cat.category_name}
+                </option>
+              ))}
               </select>
             </div>
 
@@ -745,45 +961,12 @@ const filteredItems = useMemo(() => {
             <div className="mt-3 flex gap-2">
               <button onClick={()=>addNewItem({...newServiceState, type:"service"})} className="px-4 py-2 bg-orange-500 text-white rounded-xl">Save Service</button>
               <button onClick={()=>setNewServiceState(emptyService)} className="px-4 py-2 border rounded-xl">Reset</button>
-            </div>
+            </div> */}
+             </div>
           </div>
         )}
 
-        {/* ===== Add All-in-one ===== */}
-        {activeTab === "add-allinone" && (
-          <div className="bg-white p-4 rounded-2xl shadow">
-            <h2 className="text-lg font-semibold">Add All-in-one</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-              <input placeholder="Item name" value={newAllInOneState.name} onChange={(e)=>setNewAllInOneState(s=>({...s, name:e.target.value}))} className="p-2 border rounded-xl" />
-              <input placeholder="MRP (₹)" value={newAllInOneState.mrp} onChange={(e)=>{ const d=onlyDigits(e.target.value); setNewAllInOneState(s=>({...s, mrp:d, price: s.discount ? priceFromMrpDiscount(d, s.discount) : s.price})); }} className="p-2 border rounded-xl" />
-              <input placeholder="Selling price (₹)" value={newAllInOneState.price} onChange={(e)=>{ const d=onlyDigits(e.target.value); setNewAllInOneState(s=>({...s, price:d, discount: clampDiscount(discountFromPrices(s.mrp, d))})); }} className="p-2 border rounded-xl" />
-              <input placeholder="Discount (%)" value={newAllInOneState.discount} onChange={(e)=>{ const d=clampDiscount(e.target.value); setNewAllInOneState(s=>({...s, discount:d, price: priceFromMrpDiscount(s.mrp, d)})); }} className="p-2 border rounded-xl" />
-              <input placeholder="Stock qty" value={newAllInOneState.stock} onChange={(e)=>setNewAllInOneState(s=>({...s, stock: onlyDigits(e.target.value)}))} className="p-2 border rounded-xl" />
-              <input placeholder="Unit / measurement" value={newAllInOneState.unit} onChange={(e)=>setNewAllInOneState(s=>({...s, unit: e.target.value}))} className="p-2 border rounded-xl" />
-            </div>
 
-            <textarea placeholder="Description" value={newAllInOneState.desc} onChange={(e)=>setNewAllInOneState(s=>({...s, desc:e.target.value}))} className="w-full p-2 border rounded-xl mt-3" />
-            <input placeholder="Tags (comma separated)" value={newAllInOneState.tags} onChange={(e)=>setNewAllInOneState(s=>({...s, tags: e.target.value}))} className="w-full p-2 border rounded-xl mt-2" />
-
-            <select value={newAllInOneState.category} onChange={(e)=>setNewAllInOneState(s=>({...s, category: e.target.value}))} className="w-full p-2 border rounded-xl mt-2">
-              <option value="">Select Category</option>
-              {categories.map(c=> <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-
-            <div className="mt-2">
-              <label className="w-full border p-2 rounded-xl flex items-center justify-between cursor-pointer">
-                <span>{newAllInOneState.image ? "Image selected" : "Upload photo"}</span>
-                <input type="file" accept="image/*" hidden onChange={(e)=>{ if (!e.target.files?.[0]) return; setNewAllInOneState(s=>({...s, image: URL.createObjectURL(e.target.files[0])})); }} />
-              </label>
-              {newAllInOneState.image && <img src={newAllInOneState.image} alt="preview" className="mt-2 w-28 h-28 object-cover rounded" />}
-            </div>
-
-            <div className="mt-3 flex gap-2">
-              <button onClick={()=>addNewItem({...newAllInOneState, type:"allinone"})} className="px-4 py-2 bg-orange-500 text-white rounded-xl">Save All-in-one Item</button>
-              <button onClick={()=>setNewAllInOneState(emptyAllInOne)} className="px-4 py-2 border rounded-xl">Reset</button>
-            </div>
-          </div>
-        )}
 
         {/* ===== Promotions (Coupons) ===== */}
         {activeTab === "promotions" && (
@@ -791,37 +974,150 @@ const filteredItems = useMemo(() => {
             <h2 className="text-lg font-semibold">Promotions & Coupons</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <input placeholder="Coupon code" value={couponState.code} onChange={(e)=>setCouponState(s=>({...s, code: e.target.value}))} className="p-2 border rounded-xl" />
-              <select value={couponState.kind} onChange={(e)=>setCouponState(s=>({...s, kind: e.target.value}))} className="p-2 border rounded-xl">
-                <option value="percent">Percent (%)</option>
-                <option value="flat">Flat (₹)</option>
-              </select>
-              <input placeholder="Value" value={couponState.value} onChange={(e)=>setCouponState(s=>({...s, value: onlyDigits(e.target.value)}))} className="p-2 border rounded-xl" />
-              <input placeholder="Min order (₹)" value={couponState.minOrder} onChange={(e)=>setCouponState(s=>({...s, minOrder: onlyDigits(e.target.value)}))} className="p-2 border rounded-xl" />
-              <input type="date" value={couponState.expiry} onChange={(e)=>setCouponState(s=>({...s, expiry: e.target.value}))} className="p-2 border rounded-xl" />
+              <select
+              value={offerForm.promo_type}
+              onChange={(e) =>
+                setOfferForm((s) => ({ ...s, promo_type: e.target.value }))
+              }
+              className="p-2 border rounded-xl"
+            >
+              <option value="discount">Discount</option>
+            </select>
+
+            <div className="relative">
+            <input
+              placeholder="Discount Value"
+              value={offerForm.value}
+              onChange={(e) => {
+              const val = Math.min(100, Math.max(0, Number(e.target.value)));
+              setOfferForm((s) => ({ ...s, value: val }));
+            }}
+              className="p-2 border rounded-xl w-full pr-10"
+            />
+
+            {/* % indicator */}
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+              %
+            </span>
+          </div>
+
+          {offerForm.value && (
+            <div className="text-green-600 text-sm font-semibold">
+              {offerForm.value}% OFF will be applied
+            </div>
+          )}
+
+            <input
+              placeholder="Min Order"
+              value={offerForm.min_order_amount}
+              onChange={(e) =>
+                setOfferForm((s) => ({ ...s, min_order_amount: e.target.value }))
+              }
+              className="p-2 border rounded-xl"
+            />
+
+            <input
+              type="date"
+              value={offerForm.start_date}
+              onChange={(e) =>
+                setOfferForm((s) => ({ ...s, start_date: e.target.value }))
+              }
+              className="p-2 border rounded-xl"
+            />
+
+            <input
+              type="date"
+              value={offerForm.end_date}
+              onChange={(e) =>
+                setOfferForm((s) => ({ ...s, end_date: e.target.value }))
+              }
+              className="p-2 border rounded-xl"
+            />
+
+            <input
+              placeholder="Usage Limit"
+              value={offerForm.usage_limit}
+              onChange={(e) =>
+                setOfferForm((s) => ({ ...s, usage_limit: e.target.value }))
+              }
+              className="p-2 border rounded-xl"
+            />
+
+            <input
+              placeholder="Budget"
+              value={offerForm.budget}
+              onChange={(e) =>
+                setOfferForm((s) => ({ ...s, budget: e.target.value }))
+              }
+              className="p-2 border rounded-xl"
+            />
             </div>
 
             <div className="flex gap-2">
-              <button onClick={addCoupon} className="px-4 py-2 bg-orange-500 text-white rounded-xl">Save Coupon</button>
-              <label className="bg-amber-400 text-white px-3 py-2 rounded-xl text-sm cursor-pointer">
-                Import
-                <input type="file" accept=".json" hidden onChange={(e)=>{ if (!e.target.files?.[0]) return; importJSON(e.target.files[0],"coupons"); }} />
-              </label>
-              <button onClick={()=>downloadFile(JSON.stringify(coupons, null, 2), "coupons.json", "application/json")} className="px-4 py-2 border rounded-xl flex items-center gap-2"><Download /> Export</button>
+              <button onClick={handleAddOffer} className="px-4 py-2 bg-orange-500 text-white rounded-xl">Save Coupon</button>
             </div>
 
-            <div>
-              {coupons.length === 0 ? <div className="text-gray-500">No coupons</div> : coupons.map((c)=>(
-                <div key={c.id} className="flex items-center justify-between p-3 border rounded-xl">
-                  <div>
-                    <div className="font-semibold">{c.code} <span className="text-xs text-gray-500">({c.kind === "percent" ? `${c.value}%` : `₹${c.value}`})</span></div>
-                    <div className="text-xs text-gray-500">Min order: ₹{c.minOrder || 0} • Expiry: {c.expiry || "—"}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={()=>deleteCoupon(c.id)} className="px-3 py-1 border rounded-xl text-sm text-red-600"><Trash2 /></button>
-                  </div>
-                </div>
-              ))}
+           <div className="space-y-4">
+             {offers.length === 0 ? (
+              <div className="text-gray-500">No offers</div>
+            ) : (
+              offers.map((o, index) => (
+  <div
+    key={o.promotion_id || index}
+    className="flex justify-between items-center p-4 rounded-2xl shadow-md border bg-gradient-to-r from-white to-orange-50"
+  >
+    {/* LEFT CONTENT */}
+    <div className="space-y-1">
+
+      {/* CODE */}
+      <div className="text-xl font-bold text-orange-600 tracking-wide">
+        {o.code}
+      </div>
+
+      {/* TYPE + VALUE */}
+      <div className="text-sm font-semibold text-gray-700 capitalize">
+        {o.promo_type}
+        <span className="ml-2 text-green-600 font-bold">
+        {o.value ? `${o.value}% OFF` : "0% OFF"}
+      </span>
+      </div>
+
+      {/* MIN + BUDGET */}
+      <div className="text-sm text-gray-500">
+        Min Order: ₹{Number(o.min_order_amount)} • Budget: ₹{Number(o.budget)}
+      </div>
+
+      {/* DATE */}
+      <div className="text-xs text-gray-400">
+        {new Date(o.start_date).toLocaleDateString()} →{" "}
+        {new Date(o.end_date).toLocaleDateString()}
+      </div>
+
+      {/* USAGE */}
+      <div className="text-xs text-gray-400">
+        Usage Limit: {o.usage_limit}
+      </div>
+    </div>
+
+    {/* RIGHT STATUS */}
+    <div className="flex flex-col items-end gap-2">
+      <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-semibold">
+        Active
+      </span>
+
+      <button
+  onClick={() => {
+    setEditOfferData(o);
+    setShowEditOfferModal(true);
+  }}
+  className="text-xs text-orange-500 hover:underline"
+>
+  Edit
+</button>
+    </div>
+  </div>
+))
+            )}
             </div>
           </div>
         )}
@@ -910,7 +1206,13 @@ const filteredItems = useMemo(() => {
               <input value={editing.tags || ""} onChange={(e)=>setEditing(prev=>({...prev, tags: e.target.value}))} className="w-full p-2 border rounded-xl" />
               <select value={editing.category || ""} onChange={(e)=>setEditing(prev=>({...prev, category: e.target.value}))} className="w-full p-2 border rounded-xl">
                 <option value="">Select Category</option>
-                {categories.map(c=> <option key={c.id} value={c.name}>{c.name}</option>)}
+               {categoryList.map((c, index) => (
+              <div key={c.id || index} className="flex items-center justify-between p-3 border rounded-xl">
+                <div className="font-medium">
+                  {c.name || c.category_name}
+                </div>
+              </div>
+            ))}
               </select>
 
               <div>
@@ -929,6 +1231,91 @@ const filteredItems = useMemo(() => {
           </div>
         </div>
       )}
+
+{showEditOfferModal && editOfferData && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+    <div className="bg-white p-5 rounded-2xl w-full max-w-md space-y-3">
+
+      <h3 className="text-lg font-semibold">Edit Offer</h3>
+
+      <input
+        value={editOfferData.value || ""}
+        onChange={(e) =>
+          setEditOfferData((s) => ({ ...s, value: e.target.value }))
+        }
+        placeholder="Value (%)"
+        className="w-full p-2 border rounded-xl"
+      />
+
+      <input
+        value={editOfferData.min_order_amount}
+        onChange={(e) =>
+          setEditOfferData((s) => ({
+            ...s,
+            min_order_amount: e.target.value,
+          }))
+        }
+        placeholder="Min Order"
+        className="w-full p-2 border rounded-xl"
+      />
+
+      <input
+        type="date"
+        value={editOfferData.start_date?.split("T")[0]}
+        onChange={(e) =>
+          setEditOfferData((s) => ({ ...s, start_date: e.target.value }))
+        }
+        className="w-full p-2 border rounded-xl"
+      />
+
+      <input
+        type="date"
+        value={editOfferData.end_date?.split("T")[0]}
+        onChange={(e) =>
+          setEditOfferData((s) => ({ ...s, end_date: e.target.value }))
+        }
+        className="w-full p-2 border rounded-xl"
+      />
+
+      <input
+        value={editOfferData.usage_limit}
+        onChange={(e) =>
+          setEditOfferData((s) => ({
+            ...s,
+            usage_limit: e.target.value,
+          }))
+        }
+        placeholder="Usage Limit"
+        className="w-full p-2 border rounded-xl"
+      />
+
+      <input
+        value={editOfferData.budget}
+        onChange={(e) =>
+          setEditOfferData((s) => ({ ...s, budget: e.target.value }))
+        }
+        placeholder="Budget"
+        className="w-full p-2 border rounded-xl"
+      />
+
+      <div className="flex gap-2">
+        <button
+          onClick={handleEditOffer}
+          className="flex-1 bg-orange-500 text-white py-2 rounded-xl"
+        >
+          Save
+        </button>
+
+        <button
+          onClick={() => setShowEditOfferModal(false)}
+          className="flex-1 border py-2 rounded-xl"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
     </div>
   );

@@ -4,6 +4,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { NotificationContext } from "../context/NotificationContext";
+// Update import at top
+// Update import at top
+import {
+  getMerchantOrderDetail,
+  acceptOrderMerchant,
+  updateOrderStatus,
+  updatePreparingStatus,
+  updatePreparedStatus,    // ← adad this
+} from "../services/merchantOrders";
 
 /*
  OrderDetailsPage:
@@ -54,7 +63,12 @@ function TimeStepper({ initial = 15, onSave, onClose }) {
 
         <div className="mt-6 flex gap-3">
           <button onClick={() => onSave(Math.min(50, Math.max(0, mins)))} className="flex-1 bg-orange-500 text-white py-2 rounded-xl">Save & Accept</button>
-          <button onClick={onClose} className="flex-1 border py-2 rounded-xl">Cancel</button>
+          <button
+            onClick={() => onClose(true)} // pass flag
+            className="flex-1 border py-2 rounded-xl"
+          >
+            Cancel
+          </button>
         </div>
 
         <div className="text-xs text-gray-400 mt-3">Tip: set 0 for immediate prepare or set estimated time.</div>
@@ -73,19 +87,51 @@ export default function OrderDetailsPage() {
   const [width, setWidth] = useState(0);
 
   useEffect(() => {
-    const all = JSON.parse(localStorage.getItem("merchant_orders") || "[]");
-    const found = all.find(o => String(o.id) === String(id));
-    setOrder(found || null);
-  }, [id]);
+  const fetchOrderDetail = async () => {
+    try {
+      const res = await getMerchantOrderDetail(id);
+
+      if (res?.status) {
+        const o = res.data;
+
+ 
+setOrder({
+  id: id,
+  orderCode: o.order_code,
+  customer: o.customer_name,
+  phone: o.customer_mobile,
+  deliveryPartner: o.delivery_partner_name,
+  amount: o.total_amount,
+  status: (o.status || "").toLowerCase().trim(), // ← normalize: lowercase + trim
+  createdOn: o.created_on,
+  remark: o.remark,
+  items: (o.items || []).map((i) => ({
+    name: i.product_name,
+    qty: i.quantity,
+    price: i.price,
+    total: i.total_price,
+  })),
+  timeline: o.timeline || [],
+  callAction: o.call_action,
+});
+      }
+    } catch (err) {
+      console.error("Order detail fetch error", err);
+    }
+  };
+
+  fetchOrderDetail();
+}, [id]);
+
 
   // persist helper
-  const saveOrder = (updated) => {
-    const all = JSON.parse(localStorage.getItem("merchant_orders") || "[]");
-    const next = all.map(o => (String(o.id) === String(updated.id) ? updated : o));
-    localStorage.setItem("merchant_orders", JSON.stringify(next));
-    setOrder(updated);
-    try { window.dispatchEvent(new StorageEvent("storage", { key: "merchant_orders", newValue: JSON.stringify(next) })); } catch {}
-  };
+  // const saveOrder = (updated) => {
+  //   const all = JSON.parse(localStorage.getItem("merchant_orders") || "[]");
+  //   const next = all.map(o => (String(o.id) === String(updated.id) ? updated : o));
+  //   localStorage.setItem("merchant_orders", JSON.stringify(next));
+  //   setOrder(updated);
+  //   try { window.dispatchEvent(new StorageEvent("storage", { key: "merchant_orders", newValue: JSON.stringify(next) })); } catch {}
+  // };
 
   // Slide-to-Accept handler (for New)
   const onAcceptSlide = () => {
@@ -94,30 +140,126 @@ export default function OrderDetailsPage() {
     setShowStepper(true);
   };
 
-  const onStepperSave = (mins) => {
-    // set Preparing with chosen mins
-    const updated = {
-      ...order,
-      status: "Preparing",
-      etaMins: mins,
-      accepted: true,
-      timeline: [...(order.timeline || []), { when: new Date().toISOString(), status: "Preparing" }],
-    };
-    saveOrder(updated);
-    addNotification?.(`Order ${order.id} accepted - ${mins} mins`);
-    setShowStepper(false);
-  };
+ const userId = 50;
 
-  const onMarkPrepared = () => {
-    const updated = {
-      ...order,
-      status: "Prepared",
-      preparedAt: new Date().toISOString(),
-      timeline: [...(order.timeline || []), { when: new Date().toISOString(), status: "Prepared" }],
+ const formatTime = (mins) => {
+  const h = String(Math.floor(mins / 60)).padStart(2, "0");
+  const m = String(mins % 60).padStart(2, "0");
+  return `${h}:${m}:00`;
+};
+
+const onStepperSave = async (mins) => {
+  try {
+    const payload = {
+      order_id: order.id,
+      timing: formatTime(mins),
+      is_accept: true,
+      user: userId,
     };
-    saveOrder(updated);
-    addNotification?.(`Order ${order.id} marked Prepared`);
-  };
+
+    const res = await acceptOrderMerchant(payload);
+
+    if (res?.status) {
+      setOrder((prev) => ({
+        ...prev,
+        status: "preparing",
+        etaMins: mins,
+        timeline: [
+          ...(prev.timeline || []),
+          { when: new Date().toISOString(), status: "Preparing" },
+        ],
+      }));
+
+      addNotification?.(`Order ${order.id} accepted (${mins} mins)`);
+
+      // ← ADD THIS: go back so the Preparing tab shows the order
+      setTimeout(() => navigate(-1), 1500);
+    }
+
+    setShowStepper(false);
+  } catch (err) {
+    console.error("Accept error", err);
+  }
+};
+
+const onCancelOrder = async () => {
+  try {
+    const payload = {
+      order_id: order.id,
+      timing: "00:00:00",
+      is_accept: false,
+      user: userId,
+    };
+
+    const res = await acceptOrderMerchant(payload);
+
+    if (res?.status) {
+      addNotification?.(`Order ${order.id} cancelled`);
+      navigate(-1);
+    }
+  } catch (err) {
+    console.error("Cancel error", err);
+  }
+};
+
+// Replace onMarkPreparing entirely
+const onMarkPreparing = async () => {
+  try {
+    const payload = {
+      order_id: order.id,
+      is_prepare: true,
+      user: userId,
+    };
+
+    const res = await updatePreparingStatus(payload);  // ← use new function
+
+    if (res?.status) {
+      setOrder((prev) => ({
+        ...prev,
+        status: "preparing",
+        timeline: [
+          ...(prev.timeline || []),
+          { when: new Date().toISOString(), status: "Preparing" },
+        ],
+      }));
+
+      addNotification?.(`Order ${order.id} is now Preparing`);
+      setTimeout(() => navigate("/orders", { state: { tab: "Preparing" } }), 1500);
+    }
+  } catch (err) {
+    console.error("Preparing error", err.response?.data || err);
+  }
+};
+
+ // Replace onMarkPrepared entirely
+const onMarkPrepared = async () => {
+  try {
+    const payload = {
+      order_id: Number(order.id),
+      is_prepared: true,
+      user: userId,
+    };
+
+    const res = await updatePreparedStatus(payload);  // ← use new function
+
+    if (res?.status) {
+      setOrder((prev) => ({
+        ...prev,
+        status: "prepared",
+        preparedAt: new Date().toISOString(),
+        timeline: [
+          ...(prev.timeline || []),
+          { when: new Date().toISOString(), status: "prepared" },
+        ],
+      }));
+
+      addNotification?.(`Order ${order.id} marked Prepared`);
+      setTimeout(() => navigate("/orders", { state: { tab: "Prepared" } }), 1500);
+    }
+  } catch (err) {
+    console.error("Prepare error", err.response?.data || err);
+  }
+};
 
   if (!order) {
     return (
@@ -127,13 +269,36 @@ export default function OrderDetailsPage() {
     );
   }
 
+  const handleCall = async () => {
+  try {
+    if (!order?.callAction) {
+      alert("Call not available");
+      return;
+    }
+
+    const res = await fetch(order.callAction.call_api, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id: order.callAction.order_id
+      })
+    });
+
+    const data = await res.json();
+    console.log("Call initiated", data);
+  } catch (err) {
+    console.error("Call error", err);
+  }
+};
+
+
   return (
     <div className="min-h-screen bg-[#fff6ed]">
       <div className="bg-gradient-to-r from-orange-500 to-amber-400 text-white p-4 flex items-center gap-4 shadow">
         <div onClick={() => navigate(-1)} className="bg-white rounded-full p-2 cursor-pointer"><ArrowLeft className="text-black" /></div>
         <div>
           <div className="text-sm opacity-80">Order Details</div>
-          <div className="font-semibold text-lg">#{order.id}</div>
+          <div className="font-semibold text-lg">{order.orderCode}</div>
         </div>
       </div>
 
@@ -142,15 +307,15 @@ export default function OrderDetailsPage() {
           <h2 className="font-semibold text-lg mb-2">Customer Details</h2>
           <p className="text-gray-700">{order.customer}</p>
           <p className="text-gray-700">{order.phone}</p>
-          <p className="text-gray-600 mt-1">{order.address}</p>
+          <p className="text-gray-600 mt-1">{order.remark || "No address provided"}</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow">
           <h2 className="font-semibold text-lg mb-2">Items</h2>
-          {order.items.map((i, idx) => (
+          {(order.items || []).map((i, idx) => (
             <div key={idx} className="flex justify-between text-gray-700 py-1">
               <span>{i.name}</span>
-              <span>{i.qty} × ₹{i.price}</span>
+              <span>{i.qty} × ₹{i.price} = ₹{i.total}</span>
             </div>
           ))}
           <div className="mt-3 font-bold text-right text-orange-600 text-lg">Total: ₹{order.amount}</div>
@@ -164,41 +329,69 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow space-y-4">
-          {/* If New -> slide to accept -> time stepper */}
-          {order.status === "New" && (
-            <>
-              <div className="text-sm text-gray-600">Slide to Accept Order</div>
-              <div ref={(el) => el && setWidth(el.clientWidth)}>
-                <SlideConfirm label="Slide to Accept" onConfirm={onAcceptSlide} />
-              </div>
-            </>
-          )}
 
-          {/* Preparing -> Slide to Mark Prepared */}
-          {order.status === "Preparing" && (
-            <>
-              <div className="text-sm text-gray-600">Preparing — ETA: {order.etaMins || "--"} mins</div>
-              <div>
-                <SlideConfirm label="Slide to mark Prepared" onConfirm={onMarkPrepared} />
-              </div>
-            </>
-          )}
 
-          {/* Prepared -> show done (no more actions) */}
-          {order.status === "Prepared" && (
-            <div className="text-center py-4">
-              <div className="text-lg font-semibold text-orange-500">Prepared</div>
-              <div className="text-sm text-gray-600 mt-1">Wait For Delivery Partner For Pickup</div>
-            </div>
-          )}
+  {/* status === "new" → Slide to Accept */}
+  {/* status === "placed" → Slide to Accept */}
+{order.status === "new" && (    // ← was "placed"
+  <>
+    <div className="text-sm text-gray-600">Slide to Accept Order</div>
+    <div ref={(el) => el && setWidth(el.clientWidth)}>
+      <SlideConfirm label="Slide to Accept" onConfirm={onAcceptSlide} />
+    </div>
+  </>
+)}
 
-          {/* Call & Chat */}
-          <button onClick={() => { const m = (order.phone || ""); if (m) window.location.href = `tel:${m}`; else alert("No phone"); }} className="w-full border py-3 rounded-xl flex justify-center gap-2"><Phone /> Call</button>
-          <button onClick={() => alert("Chat coming soon")} className="w-full border py-3 rounded-xl flex justify-center gap-2"><MessageCircle /> Chat</button>
-        </div>
+  {/* status === "accepted" → Slide to Prepare */}
+  {order.status === "accepted" && (
+    <>
+      <div className="text-sm text-gray-600">Order Accepted — Slide to start Preparing</div>
+      <div>
+        <SlideConfirm label="Slide to Prepare" onConfirm={onMarkPreparing} />
+      </div>
+    </>
+  )}
+
+  {/* status === "preparing" → Slide to Mark Prepared */}
+  {order.status === "preparing" && (
+    <>
+      <div className="text-sm text-gray-600">Preparing — ETA: {order.etaMins || "--"} mins</div>
+      <div>
+        <SlideConfirm label="Slide to mark Prepared" onConfirm={onMarkPrepared} />
+      </div>
+    </>
+  )}
+
+  {/* status === "prepared" → Done */}
+  {order.status === "prepared" && (
+    <div className="text-center py-4">
+      <div className="text-lg font-semibold text-orange-500">Prepared ✓</div>
+      <div className="text-sm text-gray-600 mt-1">Wait For Delivery Partner For Pickup</div>
+    </div>
+  )}
+
+  <button onClick={handleCall} className="w-full border py-3 rounded-xl flex justify-center gap-2">
+    <Phone /> Call
+  </button>
+  <button onClick={() => alert("Chat coming soon")} className="w-full border py-3 rounded-xl flex justify-center gap-2">
+    <MessageCircle /> Chat
+  </button>
+
+</div>
+
+        
       </div>
 
-      {showStepper && <TimeStepper initial={stepperInitial} onSave={onStepperSave} onClose={() => setShowStepper(false)} />}
+      {showStepper && (
+  <TimeStepper
+    initial={stepperInitial}
+    onSave={onStepperSave}
+    onClose={(isCancel) => {
+      if (isCancel) onCancelOrder();
+      else setShowStepper(false);
+    }}
+  />
+)}
     </div>
   );
 }
