@@ -3,10 +3,10 @@ import React, { useState, useEffect } from "react";
 import PageHeader from "../components/PageHeader";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { 
-  getMerchantProfile, 
-  editMerchantProfile,
-  editWorkingHours   // ✅ ADD THIS
+import {
+  getMerchantProfile,
+  addMerchantDetails,
+  editWorkingHours
 } from "../services/profileApi";
 
 
@@ -107,41 +107,64 @@ export default function ProfilePage() {
     }
   };
 
-  
+const [isProfileExists, setIsProfileExists] = useState(false);
+
 const fetchProfileFromAPI = async () => {
   try {
-    const res = await getMerchantProfile({ user: 50 });
+    setLoading(true);
 
-    console.log("Profile API:", res);
+    const res = await getMerchantProfile({
+      user: USER_ID,
+    });
 
-    if (res?.status) {
-      const data = res.data || {};
+    if (res?.status && res?.data) {
+      const data = res.data;
 
       setProfile((prev) => ({
         ...prev,
 
-        // ✅ BASIC INFO
-        storeName: data.full_name || prev.storeName,
-        address: `${data.city || ""} ${data.state || ""}` || prev.address,
-        contact: data.mobile || prev.contact,
-        email: data.email || prev.email,
-        logo: data.logo || prev.logo,
+        storeName: data.full_name || "",
+        address: data.address || "",
+        city: data.city || "",
+        state: data.state || "",
+        pincode: data.pincode || "",
 
-        // ✅ OWNER + GST
-        ownerName: data.owner_name || prev.ownerName,
-        gst: data.gst_number || prev.gst,
+        contact: data.mobile || "",
+        email: data.email || "",
 
-        // ✅ WORKING HOURS (convert array → string)
-        hours:
-          data.working_hrs?.length > 0
-            ? `${data.working_hrs[0].opening_time} - ${data.working_hrs[0].closing_time}`
-            : prev.hours,
+        ownerName: data.owner_name || "",
 
-        // ✅ DELIVERY SETTINGS
-        deliveryRadius:
-          data.servicable_radius_km || prev.deliveryRadius,
+        first_name: data.first_name || "",
+        last_name: data.last_name || "",
+        gender: data.gender || "",
+        dob: data.dob || "",
+        merchant_type: data.merchant_type || "",
 
-        // ✅ PERFORMANCE
+        commission_type: data.commission_type || "",
+        food: data.food || "",
+        longitude: data.longitude || "",
+        latitude: data.latitude || "",
+
+        aadhaar_number: data.aadhaar_number || "",
+
+        profile_photo: data.profile_photo || "",
+
+        deliveryRadius: data.servicable_radius_km || 3,
+        etaMins: data.estimated_delivery_time || 30,
+        minOrder: data.minimum_order_amount || 50,
+
+        payout: {
+          bankName: data.bank_name || "",
+          account: data.account_number || "",
+          upi: data.upi_id || "",
+          verified: true,
+        },
+        gst: data.gst_number || "",
+        fssai: data.fssai_number || "",
+        pan: data.pan_number || "",
+
+        logo: data.logo || "",
+
         performance: {
           ...prev.performance,
           rating: data.avg_rating || 0,
@@ -149,29 +172,27 @@ const fetchProfileFromAPI = async () => {
           cancellations: data.cancelled_orders || 0,
         },
 
-        // ✅ PAYOUT
-        payout: {
-          ...prev.payout,
-          bankName: data.bank_name || "",
-          account: data.account_number || "",
-          upi: data.upi_id || "",
-        },
-
-        // ✅ DOCUMENTS
-        documents: {
-          license: data.business_certificate || "",
-          gst: data.gst_certificate || "",
-          idProof: data.aadhaar_card || "",
-        },
+       documents: {
+        gst: data.gst_certificate || "",
+        fssai: data.fssai_certificate || "",
+        pan: data.pan_card || "",
+        license: data.business_certificate || "",
+        aadhaar: data.aadhaar_card || "",
+      },
       }));
     }
-  } catch (err) {
-    console.error("Profile API error:", err);
+  } catch (error) {
+    console.log(error);
+  } finally {
+    setLoading(false);
   }
 };
 
-
+const USER_ID = 88;
+const [saving, setSaving] = useState(false);
+const [loading, setLoading] = useState(true);
 const [profile, setProfile] = useState(() => loadInitialProfile());
+
 
 
 useEffect(() => {
@@ -205,23 +226,22 @@ useEffect(() => {
   })();
 
   // write profile changes to storage (and mirror merchantAccount for signup continuity)
-  useEffect(() => {
-    try {
-      // persist canonical profile
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+ useEffect(() => {
+  try {
+    if (!profile.storeName && !profile.contact) return;
 
-      // also update merchantAccount minimal fields if signup used that key
-      const minimalAcct = {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+
+    localStorage.setItem(
+      ACCOUNT_KEY,
+      JSON.stringify({
         storeName: profile.storeName,
         email: profile.email,
         phone: profile.contact,
-      };
-      // keep merchantAccount in sync so other flows can read storeName/email from it
-      localStorage.setItem(ACCOUNT_KEY, JSON.stringify(minimalAcct));
-    } catch (e) {
-      // ignore storage errors
-    }
-  }, [profile]);
+      })
+    );
+  } catch (e) {}
+}, [profile]);
 
   // sync online status to localStorage and keep profile.online in sync
   useEffect(() => {
@@ -270,7 +290,7 @@ useEffect(() => {
       if (docKey === "logo") {
         update("logo", file);
       } else {
-        update(`documents.${docKey}`, reader.result);
+        update(`documents.${docKey}`, file);
       }
 
       // auto-verify demo KYC if all docs present
@@ -288,46 +308,106 @@ useEffect(() => {
     reader.readAsDataURL(file);
   };
 
+  const validateForm = () => {
+  if (!profile.email) return alert("Email required"), false;
+  if (!profile.address) return alert("Address required"), false;
+  if (!profile.city) return alert("City required"), false;
+  if (!profile.state) return alert("State required"), false;
+  if (!profile.pincode) return alert("Pincode required"), false;
+  if (!profile.merchant_type) return alert("Merchant Type required"), false;
+  // if (!profile.ownerName) return alert("Owner Name required"), false;
+  if (!profile.gst) return alert("GST Number required"), false;
+  if (!profile.fssai) return alert("FSSAI Number required"), false;
+  if (!profile.pan) return alert("PAN Number required"), false;
+  if (!profile.first_name) return alert("First Name required"), false;
+  if (!profile.last_name) return alert("Last Name required"), false;
+  if (!profile.gender) return alert("Gender required"), false;
+  if (!profile.dob) return alert("DOB required"), false;
+  if (!profile.profile_photo) return alert("Profile Photo required"), false;
+
+  if (!profile.payout.bankName) return alert("Bank Name required"), false;
+  if (!profile.payout.account) return alert("Account Number required"), false;
+  if (!profile.payout.upi) return alert("UPI ID required"), false;
+
+if (!profile.documents.license)
+ return alert("Business Certificate required"), false;
+
+if (!profile.documents.aadhaar)
+ return alert("Aadhaar Card required"), false;
+  if (!profile?.documents?.gst)
+    return alert("GST Certificate required"), false;
+
+  if (!profile?.documents?.fssai)
+    return alert("FSSAI Certificate required"), false;
+
+  if (!profile?.documents?.pan)
+    return alert("PAN Card required"), false;
+
+  return true;
+};
+
 const handleSave = async () => {
   try {
-    const payload = {
-      user: 50,
+    if (!validateForm()) return;
 
-      full_name: profile.storeName,
-      address: profile.address,
-      mobile: profile.contact,
-      email: profile.email,
+    setSaving(true);
 
-      gst_number: profile.gst || undefined,
-      servicable_radius_km: profile.deliveryRadius || 0,
+ const payload = {
+  user: USER_ID,
 
-      account_number: profile.payout?.account || "",
-      owner_name: profile.ownerName || "",
-      upi_id: profile.payout?.upi || "",
-      bank_name: profile.payout?.bankName || "",
+  address: profile.address,
+  city: profile.city,
+  state: profile.state,
+  pincode: profile.pincode,
+  merchant_type: profile.merchant_type,
 
-      city: profile.address?.split(" ")[0] || "",   // "Vasind"
-      state: profile.address?.split(" ")[1] || "",  // "Maharashtra"
+  owner_name: `${profile.first_name} ${profile.last_name}`,
+  first_name: profile.first_name,
+  last_name: profile.last_name,
+  email: profile.email,
+  gender: profile.gender,
+  dob: profile.dob,
 
-      logo: profile.logo,
-    };
+  gst_number: profile.gst,
+  fssai_number: profile.fssai,
+  pan_number: profile.pan,
+  aadhaar_number: profile.aadhaar_number,
 
-    const res = await editMerchantProfile(payload); // ✅ correct
+  commission_type: profile.commission_type,
+  food: profile.food,
+  longitude: profile.longitude,
+  latitude: profile.latitude,
+  servicable_radius_km: profile.deliveryRadius,
 
-    await handleSaveWorkingHours();
+  bank_name: profile.payout.bankName,
+  account_number: profile.payout.account,
+  upi_id: profile.payout.upi,
 
-    console.log("Edit Profile API:", res);
+  estimated_delivery_time: profile.etaMins,
+  minimum_order_amount: profile.minOrder,
+
+  profile_photo: profile.profile_photo,
+  logo: profile.logo,
+
+  gst_certificate: profile.documents.gst,
+  fssai_certificate: profile.documents.fssai,
+  pan_card: profile.documents.pan,
+  business_certificate: profile.documents.license,
+  aadhaar_card: profile.documents.aadhaar,
+};
+
+    const res = await addMerchantDetails(payload);
 
     if (res?.status) {
-      alert("Profile updated successfully ✅");
+      alert("Saved Successfully");
       fetchProfileFromAPI();
     } else {
-      alert(res?.message || "Update failed");
+      alert("Save Failed");
     }
-
-  } catch (err) {
-    console.error("Edit profile error:", err);
-    alert("Something went wrong ❌");
+  } catch (error) {
+    console.log(error);
+  } finally {
+    setSaving(false);
   }
 };
 
@@ -382,14 +462,13 @@ const handleSave = async () => {
   
 const handleSaveWorkingHours = async () => {
   try {
-    // convert "10:00 - 11:00" → API format
     const [opening, closing] = profile.hours.split(" - ");
 
     const payload = {
-      user: 50,
+      user: USER_ID,
       working_hrs: [
         {
-          day: 1, // you can make dynamic later
+          day: 1,
           opening_time: opening + ":00",
           closing_time: closing + ":00",
         },
@@ -398,17 +477,11 @@ const handleSaveWorkingHours = async () => {
 
     const res = await editWorkingHours(payload);
 
-    console.log("Working Hours API:", res);
-
     if (res?.status) {
-      alert("Working hours updated ✅");
-    } else {
-      alert(res?.message || "Failed to update hours");
+      alert("Hours Updated");
     }
-
-  } catch (err) {
-    console.error("Working hours error:", err);
-    alert("Error updating working hours ❌");
+  } catch (error) {
+    console.log(error);
   }
 };
 
@@ -448,7 +521,15 @@ const handleSaveWorkingHours = async () => {
             <div className="flex items-center gap-3">
               <div className="w-20 h-20 rounded-lg bg-orange-50 flex items-center justify-center overflow-hidden">
                 {profile.logo ? (
-                  <img src={profile.logo} alt="logo" className="w-full h-full object-cover" />
+                  <img
+                  src={
+                    profile.logo instanceof File
+                      ? URL.createObjectURL(profile.logo)
+                      : profile.logo
+                  }
+                  alt="logo"
+                  className="w-full h-full object-cover"
+                />
                 ) : (
                   <div className="text-orange-500 font-bold">LOGO</div>
                 )}
@@ -501,8 +582,76 @@ const handleSaveWorkingHours = async () => {
             </label>
 
             <label className="flex flex-col">
+              <span className="text-sm text-gray-600">City</span>
+              <input
+                value={profile.city || ""}
+                onChange={(e)=>
+                update(
+                  "city",
+                  e.target.value.replace(/[^A-Za-z ]/g, "")
+                )
+              }
+                placeholder="Enter city"
+                className="mt-1 p-2 border rounded-xl"
+              />
+            </label>
+
+            <label className="flex flex-col">
+              <span className="text-sm text-gray-600">State</span>
+              <input
+                value={profile.state || ""}
+                onChange={(e)=>
+                update(
+                  "state",
+                  e.target.value.replace(/[^A-Za-z ]/g, "")
+                )
+              }
+                placeholder="Enter state"
+                className="mt-1 p-2 border rounded-xl"
+              />
+            </label>
+
+            <label className="flex flex-col">
+              <span className="text-sm text-gray-600">Pincode</span>
+              <input
+                value={profile.pincode || ""}
+                onChange={(e)=>
+                update(
+                  "pincode",
+                  e.target.value.replace(/\D/g, "").slice(0,6)
+                )
+              }
+                placeholder="Enter pincode"
+                className="mt-1 p-2 border rounded-xl"
+              />
+            </label>
+
+           <label className="flex flex-col">
+            <span className="text-sm text-gray-600">Merchant Type</span>
+
+            <input
+              value={profile.merchant_type || ""}
+              onChange={(e)=>
+                update(
+                  "merchant_type",
+                  e.target.value.replace(/[^A-Za-z ]/g,"")
+                )
+              }
+              placeholder="Enter merchant type"
+              className="mt-1 p-2 border rounded-xl"
+            />
+          </label>
+
+            <label className="flex flex-col">
               <span className="text-sm text-gray-600">Operating Hours</span>
               <input value={profile.hours} onChange={(e)=>update("hours", e.target.value)} placeholder="09:00 - 21:00" className="mt-1 p-2 border rounded-xl" />
+              <button
+              type="button"
+              onClick={handleSaveWorkingHours}
+              className="mt-2 px-4 py-2 bg-orange-500 text-white rounded-xl"
+            >
+              Save Hours
+            </button>
             </label>
 
             <label className="flex flex-col">
@@ -534,28 +683,178 @@ const handleSaveWorkingHours = async () => {
           </div>
         </section>
 
-        {/* 2. Owner / Account Details */}
-        <section className="bg-white rounded-2xl p-4 shadow space-y-3">
-          <h3 className="font-semibold text-lg">👤 Owner / Account Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Owner Name</span>
-              <input value={profile.ownerName} onChange={(e)=>update("ownerName", e.target.value)} className="mt-1 p-2 border rounded-xl" />
-            </label>
+{/* 2. Owner / Account Details */}
+<section className="bg-white rounded-2xl p-4 shadow space-y-3">
+  <h3 className="font-semibold text-lg">👤 Owner / Account Details</h3>
 
-            <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Registered Phone (read-only)</span>
-              <input value={profile.contact} readOnly className="mt-1 p-2 border rounded-xl bg-gray-50" />
-            </label>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            {/* Merchant ID removed (not shown) */}
+    {/* First Name */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">First Name</span>
+      <input
+        value={profile.first_name || ""}
+        onChange={(e) =>
+          update(
+            "first_name",
+            e.target.value.replace(/[^A-Za-z ]/g, "")
+          )
+        }
+        placeholder="Enter first name"
+        className="p-2 border rounded-xl"
+      />
+    </label>
 
-            <label className="flex flex-col">
-              <span className="text-sm text-gray-600">GST / Business PAN (optional)</span>
-              <input value={profile.gst} onChange={(e)=>update("gst", e.target.value)} className="mt-1 p-2 border rounded-xl" />
-            </label>
-          </div>
-        </section>
+    {/* Last Name */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">Last Name</span>
+      <input
+        value={profile.last_name || ""}
+        onChange={(e) =>
+          update(
+            "last_name",
+            e.target.value.replace(/[^A-Za-z ]/g, "")
+          )
+        }
+        placeholder="Enter last name"
+        className="p-2 border rounded-xl"
+      />
+    </label>
+
+    {/* Gender */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">Gender</span>
+      <select
+        value={profile.gender || ""}
+        onChange={(e) => update("gender", e.target.value)}
+        className="p-2 border rounded-xl"
+      >
+        <option value="">Select Gender</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+        <option value="Other">Other</option>
+      </select>
+    </label>
+
+    {/* DOB */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">Date of Birth</span>
+      <input
+        type="date"
+        value={profile.dob || ""}
+        onChange={(e) => update("dob", e.target.value)}
+        className="p-2 border rounded-xl"
+      />
+    </label>
+
+    {/* Profile Photo */}
+    <label className="flex flex-col md:col-span-2">
+      <span className="text-sm text-gray-600 mb-1">Profile Photo</span>
+
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) =>
+          update("profile_photo", e.target.files?.[0])
+        }
+        className="p-2 border rounded-xl"
+      />
+
+      {profile.profile_photo && (
+        <img
+          src={
+            profile.profile_photo instanceof File
+              ? URL.createObjectURL(profile.profile_photo)
+              : profile.profile_photo
+          }
+          alt="Profile"
+          className="w-24 h-24 mt-3 rounded-xl object-cover border"
+        />
+      )}
+    </label>
+
+    {/* Registered Phone */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">
+        Registered Phone
+      </span>
+
+      <input
+        value={profile.contact}
+        readOnly
+        className="p-2 border rounded-xl bg-gray-100"
+      />
+    </label>
+
+    {/* GST */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">
+        GST Number
+      </span>
+
+      <input
+        value={profile.gst || ""}
+        onChange={(e) =>
+          update("gst", e.target.value.toUpperCase())
+        }
+        placeholder="Enter GST Number"
+        className="p-2 border rounded-xl"
+      />
+    </label>
+
+    {/* FSSAI */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">
+        FSSAI Number
+      </span>
+
+      <input
+        value={profile.fssai || ""}
+        onChange={(e) =>
+          update("fssai", e.target.value.toUpperCase())
+        }
+        placeholder="Enter FSSAI Number"
+        className="p-2 border rounded-xl"
+      />
+    </label>
+
+    {/* PAN */}
+    <label className="flex flex-col">
+      <span className="text-sm text-gray-600 mb-1">
+        PAN Number
+      </span>
+
+      <input
+        value={profile.pan || ""}
+        onChange={(e) =>
+          update("pan", e.target.value.toUpperCase())
+        }
+        placeholder="Enter PAN Number"
+        className="p-2 border rounded-xl"
+      />
+    </label>
+
+{/* Aadhaar Number */}
+<label className="flex flex-col">
+  <span className="text-sm text-gray-600 mb-1">
+    Aadhaar Number
+  </span>
+
+  <input
+    value={profile.aadhaar_number || ""}
+    onChange={(e) =>
+      update(
+        "aadhaar_number",
+        e.target.value.replace(/\D/g, "").slice(0,12)
+      )
+    }
+    placeholder="Enter Aadhaar Number"
+    className="p-2 border rounded-xl"
+  />
+</label>
+
+  </div>
+</section>
 
         {/* 3. Business Settings */}
         <section className="bg-white rounded-2xl p-4 shadow space-y-3">
@@ -589,6 +888,76 @@ const handleSaveWorkingHours = async () => {
               <span className="text-sm text-gray-600">Minimum Order Amount (₹)</span>
               <input type="number" value={profile.minOrder} onChange={(e)=>update("minOrder", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
             </label>
+
+              {/* Commission Type */}
+              <label className="flex flex-col">
+                <span className="text-sm text-gray-600">
+                  Commission Type
+                </span>
+
+                <input
+                  value={profile.commission_type || ""}
+                  onChange={(e)=>
+                    update("commission_type", e.target.value)
+                  }
+                  placeholder="Enter commission type"
+                  className="mt-1 p-2 border rounded-xl"
+                />
+              </label>
+
+              {/* Food */}
+              <label className="flex flex-col">
+                <span className="text-sm text-gray-600">
+                  Food
+                </span>
+
+                <input
+                  value={profile.food || ""}
+                  onChange={(e)=>
+                    update("food", e.target.value)
+                  }
+                  placeholder="Veg / Non Veg / Both"
+                  className="mt-1 p-2 border rounded-xl"
+                />
+              </label>
+
+              {/* Latitude */}
+              <label className="flex flex-col">
+                <span className="text-sm text-gray-600">
+                  Latitude
+                </span>
+
+                <input
+                  value={profile.latitude || ""}
+                  onChange={(e)=>
+                    update(
+                      "latitude",
+                      e.target.value.replace(/[^0-9.-]/g,"")
+                    )
+                  }
+                  placeholder="Enter latitude"
+                  className="mt-1 p-2 border rounded-xl"
+                />
+              </label>
+
+              {/* Longitude */}
+              <label className="flex flex-col">
+                <span className="text-sm text-gray-600">
+                  Longitude
+                </span>
+
+                <input
+                  value={profile.longitude || ""}
+                  onChange={(e)=>
+                    update(
+                      "longitude",
+                      e.target.value.replace(/[^0-9.-]/g,"")
+                    )
+                  }
+                  placeholder="Enter longitude"
+                  className="mt-1 p-2 border rounded-xl"
+                />
+              </label>
 
             <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center gap-2">
@@ -645,7 +1014,12 @@ const handleSaveWorkingHours = async () => {
             </label>
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Account Number</span>
-              <input value={profile?.payout?.account} onChange={(e)=>update("payout.account", e.target.value.replace(/\s/g,""))} className="mt-1 p-2 border rounded-xl" />
+              <input value={profile?.payout?.account} onChange={(e)=>
+              update(
+                "payout.account",
+                e.target.value.replace(/\D/g,"")
+              )
+              } className="mt-1 p-2 border rounded-xl" />
               <div className="text-xs text-gray-500 mt-1">Displayed masked: {maskAccount(profile?.payout?.account)}</div>
             </label>
 
@@ -670,18 +1044,87 @@ const handleSaveWorkingHours = async () => {
             <div className="p-3 border rounded-xl">
               <div className="text-sm text-gray-600">Business License</div>
               <input type="file" accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "license")} className="mt-2" />
-              {profile?.documents?.license && <img src={profile?.documents?.license} alt="lic" className="mt-2 w-full h-24 object-cover rounded" />}
+              {profile?.documents?.license && <img
+              src={
+                profile?.documents?.license instanceof File
+                  ? URL.createObjectURL(profile.documents.license)
+                  : profile.documents.license
+              } alt="lic" className="mt-2 w-full h-24 object-cover rounded" />}
             </div>
             <div className="p-3 border rounded-xl">
               <div className="text-sm text-gray-600">GST Certificate</div>
               <input type="file" accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "gst")} className="mt-2" />
-              {profile?.documents?.gst && <img src={profile?.documents?.gst} alt="gst" className="mt-2 w-full h-24 object-cover rounded" />}
+              {profile?.documents?.gst && <img
+              src={
+                profile?.documents?.gst instanceof File
+                  ? URL.createObjectURL(profile.documents.gst)
+                  : profile.documents.gst
+              } alt="gst" className="mt-2 w-full h-24 object-cover rounded" />}
             </div>
             <div className="p-3 border rounded-xl">
-              <div className="text-sm text-gray-600">ID Proof (PAN / Aadhaar)</div>
-              <input type="file" accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "idProof")} className="mt-2" />
-              {profile?.documents?.idProof && <img src={profile?.documents?.idProof} alt="id" className="mt-2 w-full h-24 object-cover rounded" />}
+             <div className="text-sm text-gray-600">PAN Card</div>
+              <input
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e)=>onFileChange(e, "pan")}
+              className="mt-2"
+              />
+              {profile?.documents?.pan && <img
+              src={
+                profile?.documents?.pan instanceof File
+                  ? URL.createObjectURL(profile.documents.pan)
+                  : profile.documents.pan
+              } alt="id" className="mt-2 w-full h-24 object-cover rounded" />}
             </div>
+            <div className="p-3 border rounded-xl">
+  <div className="text-sm text-gray-600">
+    FSSAI Certificate
+  </div>
+
+  <input
+    type="file"
+    accept="image/*,.pdf"
+    onChange={(e)=>onFileChange(e,"fssai")}
+    className="mt-2"
+  />
+
+  {profile?.documents?.fssai && (
+    <img
+      src={
+        profile.documents.fssai instanceof File
+          ? URL.createObjectURL(profile.documents.fssai)
+          : profile.documents.fssai
+      }
+      alt="fssai"
+      className="mt-2 w-full h-24 object-cover rounded"
+    />
+  )}
+</div>
+{/* Aadhaar Card */}
+<div className="p-3 border rounded-xl">
+  <div className="text-sm text-gray-600">
+    Aadhaar Card
+  </div>
+
+  <input
+    type="file"
+    accept="image/*,.pdf"
+    onChange={(e)=>onFileChange(e,"aadhaar")}
+    className="mt-2"
+  />
+
+  {profile?.documents?.aadhaar && (
+    <img
+      src={
+        profile.documents.aadhaar instanceof File
+          ? URL.createObjectURL(profile.documents.aadhaar)
+          : profile.documents.aadhaar
+      }
+      alt="aadhaar"
+      className="mt-2 w-full h-24 object-cover rounded"
+    />
+  )}
+</div>
           </div>
         </section>
 
@@ -708,7 +1151,11 @@ const handleSaveWorkingHours = async () => {
           <div className="mt-4 flex justify-between items-center">
             <div className="text-sm text-gray-500">Account actions</div>
             <div className="flex gap-2">
-              <button onClick={handleSave} className="px-4 py-2 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-xl">Save</button>
+             <button
+                onClick={handleSave}
+                disabled={saving}
+              className="px-4 py-2 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-xl">{saving ? "Saving..." : "Save Details"}
+              </button>
               <button onClick={logout} className="px-4 py-2 rounded-xl border text-red-500">Logout</button>
             </div>
           </div>

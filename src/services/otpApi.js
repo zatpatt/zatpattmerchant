@@ -12,6 +12,7 @@ export const verifyOtp = async ({ mobile, otp }) => {
     {
       mobile,
       otp,
+      role: "merchant",
     }
   );
   return res.data;
