@@ -500,11 +500,13 @@ const handleSaveWorkingHours = async () => {
     }));
   })();
 
-  const logout = () => {
-    // clear auth token but keep profile data
-    localStorage.removeItem("merchantAuth");
-    window.location.href = "/";
-  };
+ const logout = () => {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("user_id");
+
+  window.location.href = "/";
+};
 
   // Prevent editing of phone (from signup/login). But allow storeName/email editing as requested.
   // Payment methods: enforce COD only

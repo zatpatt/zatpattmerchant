@@ -38,19 +38,21 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-  if (error.response?.status === 401) {
-  console.warn("Token expired");
+    if (error.response?.status === 401) {
+      console.warn("Token expired");
 
-  const isLoginRequest =
-    error.config.url.includes("request-otp") ||
-    error.config.url.includes("verify-otp");
+      const isLoginRequest =
+        error.config.url.includes("request-otp") ||
+        error.config.url.includes("verify-otp");
 
-  if (!isLoginRequest) {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    window.location.href = "/";
-  }
-}
+      if (!isLoginRequest) {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user_id");
+
+        window.location.href = "/";
+      }
+    }
 
     return Promise.reject(error);
   }

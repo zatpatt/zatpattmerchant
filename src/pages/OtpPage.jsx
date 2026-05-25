@@ -100,10 +100,16 @@ export default function OtpPage() {
     }
 
     saveAuthData({
-      access: accessToken,
-      refresh: refreshToken,
-      user: data.user || null,
-    });
+  access: accessToken,
+  refresh: refreshToken,
+  user: data.user || null,
+});
+
+if (data.user?.id) {
+  localStorage.setItem("user_id", data.user.id);
+}
+
+navigate("/dashboard", { replace: true });
 
     // ✅ REDIRECT
     

@@ -52,7 +52,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   
   const [liveOrders, setLiveOrders] = useState([]);
- const userId = 50;
+ const userId = 88;
 
   // --- Load initial store name from merchant_profile or merchant_storeName ---
   const getStoreNameFromStorage = () => {
@@ -97,7 +97,7 @@ export default function DashboardPage() {
   useEffect(() => {
   const fetchDashboard = async () => {
     try {
-      const userId = 50;
+      const userId = 88;
 
       const res = await getDashboardData(userId);
 
@@ -134,9 +134,15 @@ export default function DashboardPage() {
 // }, []);
 
 useEffect(() => {
+  let interval;
+
   const fetchLiveOrders = async () => {
     try {
-      const res = await getLiveOrders(userId);
+      const storedUserId = localStorage.getItem("user_id");
+
+      if (!storedUserId) return;
+
+      const res = await getLiveOrders(storedUserId);
 
       if (res?.status) {
         setLiveOrders(res.data || []);
@@ -148,20 +154,25 @@ useEffect(() => {
 
   fetchLiveOrders();
 
-  const interval = setInterval(fetchLiveOrders, 10000);
+  interval = setInterval(() => {
+    if (document.visibilityState === "visible") {
+      fetchLiveOrders();
+    }
+  }, 15000);
 
   return () => clearInterval(interval);
-}, [userId]);
+}, []);
+
 
   // Products catalog (for top-sellers). Stored in localStorage 'merchant_products' or default sample
-  const defaultProducts = [
-    { id: "p1", name: "Paneer Roll" },
-    { id: "p2", name: "Cold Coffee" },
-    { id: "p3", name: "Veg Pizza" },
-    { id: "p4", name: "Burger" },
-    { id: "p5", name: "French Fries" },
-    { id: "p6", name: "Momos" },
-  ];
+  // const defaultProducts = [
+  //   { id: "p1", name: "Paneer Roll" },
+  //   { id: "p2", name: "Cold Coffee" },
+  //   { id: "p3", name: "Veg Pizza" },
+  //   { id: "p4", name: "Burger" },
+  //   { id: "p5", name: "French Fries" },
+  //   { id: "p6", name: "Momos" },
+  // ];
   const [products] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("merchant_products") || "null");
@@ -334,49 +345,49 @@ useEffect(() => {
   }, [stats, earningsMeta]);
 
   // --- Simulate incoming orders while online (for demo) ---
-  useEffect(() => {
-    if (!online) return;
-    const productNames = products.map((p) => p.name);
-    const id = setInterval(() => {
-      // create order
-      const itemsCount = Math.floor(1 + Math.random() * 3);
-      const items = [];
-      for (let i = 0; i < itemsCount; i++) {
-        items.push(productNames[Math.floor(Math.random() * productNames.length)]);
-      }
-      const amount = itemsCount * (100 + Math.floor(Math.random() * 300));
-      const possibleStatuses = ["Pending", "Completed", "Canceled"];
-      const status = possibleStatuses[Math.floor(Math.random() * possibleStatuses.length)];
-      const rating = status === "Completed" && Math.random() > 0.4 ? +(3 + Math.random() * 2).toFixed(1) : undefined; // some completed have rating
-      const order = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        customer: `Customer ${Math.floor(100 + Math.random() * 900)}`,
-        items,
-        amount,
-        status,
-        paidToMerchant: status === "Completed" ? false : false, // completed orders initially not paid
-        rating,
-        timestamp: new Date().toISOString(),
-      };
+  // useEffect(() => {
+  //   if (!online) return;
+  //   const productNames = products.map((p) => p.name);
+  //   const id = setInterval(() => {
+  //     // create order
+  //     const itemsCount = Math.floor(1 + Math.random() * 3);
+  //     const items = [];
+  //     for (let i = 0; i < itemsCount; i++) {
+  //       items.push(productNames[Math.floor(Math.random() * productNames.length)]);
+  //     }
+  //     const amount = itemsCount * (100 + Math.floor(Math.random() * 300));
+  //     const possibleStatuses = ["Pending", "Completed", "Canceled"];
+  //     const status = possibleStatuses[Math.floor(Math.random() * possibleStatuses.length)];
+  //     const rating = status === "Completed" && Math.random() > 0.4 ? +(3 + Math.random() * 2).toFixed(1) : undefined; // some completed have rating
+  //     const order = {
+  //       id: Date.now() + Math.floor(Math.random() * 1000),
+  //       customer: `Customer ${Math.floor(100 + Math.random() * 900)}`,
+  //       items,
+  //       amount,
+  //       status,
+  //       paidToMerchant: status === "Completed" ? false : false, // completed orders initially not paid
+  //       rating,
+  //       timestamp: new Date().toISOString(),
+  //     };
 
-      const nextOrders = [order, ...orders];
-      persistOrders(nextOrders);
+  //     const nextOrders = [order, ...orders];
+  //     persistOrders(nextOrders);
 
-      // update earningsMeta quickly: increment total count & totals if completed
-      const meta = { ...earningsMeta };
-      meta.totalOrders = (meta.totalOrders || 0) + 1;
-      if (status === "Completed") {
-        meta.total = (Number(meta.total || 0) + amount);
-        meta.today = (Number(meta.today || 0) + amount);
-      }
-      // keep pending default if not present
-      meta.pending = meta.pending || 0;
-      persistEarningsMeta(meta);
-    }, 20000);
+  //     // update earningsMeta quickly: increment total count & totals if completed
+  //     const meta = { ...earningsMeta };
+  //     meta.totalOrders = (meta.totalOrders || 0) + 1;
+  //     if (status === "Completed") {
+  //       meta.total = (Number(meta.total || 0) + amount);
+  //       meta.today = (Number(meta.today || 0) + amount);
+  //     }
+  //     // keep pending default if not present
+  //     meta.pending = meta.pending || 0;
+  //     persistEarningsMeta(meta);
+  //   }, 20000);
 
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online, orders, earningsMeta, products]);
+  //   return () => clearInterval(id);
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [online, orders, earningsMeta, products]);
 
   // --- Toggle online with confetti + persist ---
   const toggleOnline = () => {

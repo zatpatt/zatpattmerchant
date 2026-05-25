@@ -625,7 +625,7 @@ const filteredItems = useMemo(() => {
             { id: "items", label: "All Menus" },
             { id: "categories", label: "Categories" },
             { id: "add", label: "Add Item" },
-            { id: "add-service", label: "Add Service" },            
+            // { id: "add-service", label: "Add Service" },            
             { id: "promotions", label: "Promotions" },
             { id: "insights", label: "Insights" },
           ].map((t) => (
@@ -924,7 +924,7 @@ const filteredItems = useMemo(() => {
         )}
 
         {/* ===== Add Service ===== */}
-        {activeTab === "add-service" && (
+        {/* {activeTab === "add-service" && (
           <div className="bg-white p-4 rounded-2xl shadow">
             <h2 className="text-lg font-semibold">Add New Service</h2>
                <div className="bg-white p-4 rounded-2xl shadow">
@@ -961,10 +961,10 @@ const filteredItems = useMemo(() => {
             <div className="mt-3 flex gap-2">
               <button onClick={()=>addNewItem({...newServiceState, type:"service"})} className="px-4 py-2 bg-orange-500 text-white rounded-xl">Save Service</button>
               <button onClick={()=>setNewServiceState(emptyService)} className="px-4 py-2 border rounded-xl">Reset</button>
-            </div> */}
+            </div> 
              </div>
           </div>
-        )}
+        )} */}
 
 
 
