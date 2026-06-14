@@ -8,7 +8,7 @@ import {
   addMerchantDetails,
   editWorkingHours
 } from "../services/profileApi";
-
+import toast from "react-hot-toast";
 
 /**
  * ProfilePage.jsx (updated)
@@ -30,7 +30,7 @@ import {
 const PROFILE_KEY = "merchant_profile";
 const ACCOUNT_KEY = "merchantAccount"; // expected signup storage (option 1)
 const LOGIN_NUMBER_KEY = "merchantLoginNumber";
-const ONLINE_STATUS_KEY = "merchantOnlineStatus";
+// const ONLINE_STATUS_KEY = "merchantOnlineStatus";
 
 function maskAccount(acc = "") {
   if (!acc) return "";
@@ -40,6 +40,9 @@ function maskAccount(acc = "") {
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+
+// const USER_ID =
+//   localStorage.getItem("user_id");
 
   // load initial stored account/profile
   const loadInitialProfile = () => {
@@ -67,7 +70,7 @@ export default function ProfilePage() {
         ownerName: profileFrom.ownerName || "",
         kycStatus: profileFrom.kycStatus || "Pending",
         gst: profileFrom.gst || "",
-        online: (localStorage.getItem(ONLINE_STATUS_KEY) || (profileFrom.online === false ? "false" : "true")) === "true",
+        // online: (localStorage.getItem(ONLINE_STATUS_KEY) || (profileFrom.online === false ? "false" : "true")) === "true",
         deliveryRadius: profileFrom.deliveryRadius ?? 3,
         etaMins: profileFrom.etaMins ?? 30,
         minOrder: profileFrom.minOrder ?? 50,
@@ -110,6 +113,11 @@ export default function ProfilePage() {
 const [isProfileExists, setIsProfileExists] = useState(false);
 
 const fetchProfileFromAPI = async () => {
+
+  if (!USER_ID) return;
+
+  if (loading) return;
+
   try {
     setLoading(true);
 
@@ -138,7 +146,7 @@ const fetchProfileFromAPI = async () => {
         last_name: data.last_name || "",
         gender: data.gender || "",
         dob: data.dob || "",
-        merchant_type: data.merchant_type || "",
+        // merchant_type: data.merchant_type || "",
 
         commission_type: data.commission_type || "",
         food: data.food || "",
@@ -189,18 +197,40 @@ const fetchProfileFromAPI = async () => {
 };
 
 const USER_ID = 88;
+
+// 1. REMOVE HARDCODED USER_ID
+
+// Find:
+
+// const USER_ID = 88;
+
+// REPLACE WITH:
+
+// const USER_ID =
+//   localStorage.getItem("user_id");
+
 const [saving, setSaving] = useState(false);
-const [loading, setLoading] = useState(true);
+const [loading, setLoading] = useState(false);
 const [profile, setProfile] = useState(() => loadInitialProfile());
 
+const [hoursLoading, setHoursLoading] =
+  useState(false);
 
+const [bankLoading, setBankLoading] =
+  useState(false);
+
+// const [onlineLoading, setOnlineLoading] =
+//   useState(false);
+
+  const [previewUrls, setPreviewUrls] =
+  useState({});
 
 useEffect(() => {
   fetchProfileFromAPI();
 }, []);
 
   // keep local state onlineStatus for smooth toggling and sync with localStorage
-  const [online, setOnline] = useState(profile.online);
+  // const [online, setOnline] = useState(profile.online);
 
   // compute completion score
   const completionScore = (() => {
@@ -227,37 +257,57 @@ useEffect(() => {
 
   // write profile changes to storage (and mirror merchantAccount for signup continuity)
  useEffect(() => {
-  try {
-    if (!profile.storeName && !profile.contact) return;
 
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  const timeout = setTimeout(() => {
 
-    localStorage.setItem(
-      ACCOUNT_KEY,
-      JSON.stringify({
-        storeName: profile.storeName,
-        email: profile.email,
-        phone: profile.contact,
-      })
-    );
-  } catch (e) {}
+    try {
+
+      if (
+        !profile.storeName &&
+        !profile.contact
+      ) return;
+
+      localStorage.setItem(
+        PROFILE_KEY,
+        JSON.stringify(profile)
+      );
+
+      localStorage.setItem(
+        ACCOUNT_KEY,
+        JSON.stringify({
+          storeName:
+            profile.storeName,
+          email:
+            profile.email,
+          phone:
+            profile.contact,
+        })
+      );
+
+    } catch (e) {}
+
+  }, 400);
+
+  return () =>
+    clearTimeout(timeout);
+
 }, [profile]);
 
   // sync online status to localStorage and keep profile.online in sync
-  useEffect(() => {
-    try {
-      localStorage.setItem(ONLINE_STATUS_KEY, online ? "true" : "false");
-    } catch {}
-    setProfile((p) => ({ ...p, online }));
-  }, [online]);
+  // useEffect(() => {
+  //   try {
+  //     localStorage.setItem(ONLINE_STATUS_KEY, online ? "true" : "false");
+  //   } catch {}
+  //   setProfile((p) => ({ ...p, online }));
+  // }, [online]);
 
   // listen to storage events so dashboard/profile across tabs stay in sync
   useEffect(() => {
     const onStorage = (e) => {
       if (!e.key) return;
-      if (e.key === ONLINE_STATUS_KEY) {
-        setOnline(e.newValue === "true");
-      }
+      // if (e.key === ONLINE_STATUS_KEY) {
+      //   setOnline(e.newValue === "true");
+      // }
       if (e.key === PROFILE_KEY || e.key === ACCOUNT_KEY || e.key === LOGIN_NUMBER_KEY) {
         setProfile(loadInitialProfile());
       }
@@ -308,45 +358,125 @@ useEffect(() => {
     reader.readAsDataURL(file);
   };
 
-  const validateForm = () => {
-  if (!profile.email) return alert("Email required"), false;
-  if (!profile.address) return alert("Address required"), false;
-  if (!profile.city) return alert("City required"), false;
-  if (!profile.state) return alert("State required"), false;
-  if (!profile.pincode) return alert("Pincode required"), false;
-  if (!profile.merchant_type) return alert("Merchant Type required"), false;
-  // if (!profile.ownerName) return alert("Owner Name required"), false;
-  if (!profile.gst) return alert("GST Number required"), false;
-  if (!profile.fssai) return alert("FSSAI Number required"), false;
-  if (!profile.pan) return alert("PAN Number required"), false;
-  if (!profile.first_name) return alert("First Name required"), false;
-  if (!profile.last_name) return alert("Last Name required"), false;
-  if (!profile.gender) return alert("Gender required"), false;
-  if (!profile.dob) return alert("DOB required"), false;
-  if (!profile.profile_photo) return alert("Profile Photo required"), false;
+ const validateForm = () => {
 
-  if (!profile.payout.bankName) return alert("Bank Name required"), false;
-  if (!profile.payout.account) return alert("Account Number required"), false;
-  if (!profile.payout.upi) return alert("UPI ID required"), false;
+  if (!profile.email) {
+    toast.error("Email required");
+    return false;
+  }
 
-if (!profile.documents.license)
- return alert("Business Certificate required"), false;
+  if (!profile.address) {
+    toast.error("Address required");
+    return false;
+  }
 
-if (!profile.documents.aadhaar)
- return alert("Aadhaar Card required"), false;
-  if (!profile?.documents?.gst)
-    return alert("GST Certificate required"), false;
+  if (!profile.city) {
+    toast.error("City required");
+    return false;
+  }
 
-  if (!profile?.documents?.fssai)
-    return alert("FSSAI Certificate required"), false;
+  if (!profile.state) {
+    toast.error("State required");
+    return false;
+  }
 
-  if (!profile?.documents?.pan)
-    return alert("PAN Card required"), false;
+  if (!profile.pincode) {
+    toast.error("Pincode required");
+    return false;
+  }
+
+  // if (!profile.merchant_type) {
+  //   toast.error("Merchant Type required");
+  //   return false;
+  // }
+
+  if (!profile.gst) {
+    toast.error("GST Number required");
+    return false;
+  }
+
+  if (!profile.fssai) {
+    toast.error("FSSAI Number required");
+    return false;
+  }
+
+  if (!profile.pan) {
+    toast.error("PAN Number required");
+    return false;
+  }
+
+  if (!profile.first_name) {
+    toast.error("First Name required");
+    return false;
+  }
+
+  if (!profile.last_name) {
+    toast.error("Last Name required");
+    return false;
+  }
+
+  if (!profile.gender) {
+    toast.error("Gender required");
+    return false;
+  }
+
+  if (!profile.dob) {
+    toast.error("DOB required");
+    return false;
+  }
+
+  if (!profile.profile_photo) {
+    toast.error("Profile Photo required");
+    return false;
+  }
+
+  if (!profile.payout.bankName) {
+    toast.error("Bank Name required");
+    return false;
+  }
+
+  if (!profile.payout.account) {
+    toast.error("Account Number required");
+    return false;
+  }
+
+  if (!profile.payout.upi) {
+    toast.error("UPI ID required");
+    return false;
+  }
+
+  if (!profile.documents.license) {
+    toast.error("Business Certificate required");
+    return false;
+  }
+
+  if (!profile.documents.aadhaar) {
+    toast.error("Aadhaar Card required");
+    return false;
+  }
+
+  if (!profile?.documents?.gst) {
+    toast.error("GST Certificate required");
+    return false;
+  }
+
+  if (!profile?.documents?.fssai) {
+    toast.error("FSSAI Certificate required");
+    return false;
+  }
+
+  if (!profile?.documents?.pan) {
+    toast.error("PAN Card required");
+    return false;
+  }
 
   return true;
 };
 
 const handleSave = async () => {
+
+  if (saving) return;
+
   try {
     if (!validateForm()) return;
 
@@ -359,7 +489,7 @@ const handleSave = async () => {
   city: profile.city,
   state: profile.state,
   pincode: profile.pincode,
-  merchant_type: profile.merchant_type,
+  // merchant_type: profile.merchant_type,
 
   owner_name: `${profile.first_name} ${profile.last_name}`,
   first_name: profile.first_name,
@@ -399,13 +529,19 @@ const handleSave = async () => {
     const res = await addMerchantDetails(payload);
 
     if (res?.status) {
-      alert("Saved Successfully");
+      toast.success(
+  "Profile saved successfully"
+);
       fetchProfileFromAPI();
     } else {
-      alert("Save Failed");
+      toast.error(
+  "Failed to save profile"
+);
     }
   } catch (error) {
-    console.log(error);
+    toast.error(
+      "Something went wrong"
+    );
   } finally {
     setSaving(false);
   }
@@ -460,8 +596,15 @@ const handleSave = async () => {
 //   return res.data;
 // };
   
-const handleSaveWorkingHours = async () => {
+const handleSaveWorkingHours =
+async () => {
+
+  if (hoursLoading) return;
+
   try {
+
+    setHoursLoading(true);
+  
     const [opening, closing] = profile.hours.split(" - ");
 
     const payload = {
@@ -478,18 +621,49 @@ const handleSaveWorkingHours = async () => {
     const res = await editWorkingHours(payload);
 
     if (res?.status) {
-      alert("Hours Updated");
+     toast.success(
+      "Working hours updated"
+    );
     }
   } catch (error) {
     console.log(error);
+    toast.error(
+      "Failed to update hours"
+    );
   }
+ finally {
+
+  setHoursLoading(false);
+
+}
 };
 
 
-  const handleBankVerify = () => {
-    update("payout.verified", true);
-    alert("Bank details verified (demo)");
-  };
+ const handleBankVerify = async () => {
+
+  if (
+    bankLoading ||
+    profile?.payout?.verified
+  ) return;
+
+  try {
+
+    setBankLoading(true);
+
+    update(
+      "payout.verified",
+      true
+    );
+    toast.success(
+  "Bank verified successfully"
+);
+
+  } finally {
+
+  setBankLoading(false);
+
+}
+};
 
   const weeklyChart = (() => {
     const arr = (profile?.performance?.weeklySales) || [0,0,0,0,0,0,0];
@@ -501,6 +675,9 @@ const handleSaveWorkingHours = async () => {
   })();
 
  const logout = () => {
+
+  if (saving) return;
+
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user_id");
@@ -511,6 +688,16 @@ const handleSaveWorkingHours = async () => {
   // Prevent editing of phone (from signup/login). But allow storeName/email editing as requested.
   // Payment methods: enforce COD only
   // Merchant ID removed
+
+//   const preview =
+//   URL.createObjectURL(file);
+
+// setPreviewUrls((prev) => ({
+//   ...prev,
+//   [docKey]: preview,
+// }));
+
+  
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col">
@@ -526,7 +713,7 @@ const handleSaveWorkingHours = async () => {
                   <img
                   src={
                     profile.logo instanceof File
-                      ? URL.createObjectURL(profile.logo)
+                      ? getImagePreview(profile.logo)
                       : profile.logo
                   }
                   alt="logo"
@@ -575,18 +762,23 @@ const handleSaveWorkingHours = async () => {
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Store Name</span>
               {/* storeName editable (coming from signup but allowed to edit here) */}
-              <input value={profile.storeName} onChange={(e)=>update("storeName", e.target.value)} placeholder="Store name" className="mt-1 p-2 border rounded-xl" />
+              <input value={profile.storeName || ""} 
+              disabled={saving}
+              onChange={(e)=>update("storeName", e.target.value)} placeholder="Store name" className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Store Address</span>
-              <input value={profile.address} onChange={(e)=>update("address", e.target.value)} placeholder="Full address" className="mt-1 p-2 border rounded-xl" />
+              <input value={profile.address || ""} 
+              disabled={saving}
+              onChange={(e)=>update("address", e.target.value)} placeholder="Full address" className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">City</span>
               <input
                 value={profile.city || ""}
+                disabled={saving}
                 onChange={(e)=>
                 update(
                   "city",
@@ -617,6 +809,7 @@ const handleSaveWorkingHours = async () => {
               <span className="text-sm text-gray-600">Pincode</span>
               <input
                 value={profile.pincode || ""}
+                disabled={saving}
                 onChange={(e)=>
                 update(
                   "pincode",
@@ -628,11 +821,12 @@ const handleSaveWorkingHours = async () => {
               />
             </label>
 
-           <label className="flex flex-col">
+           {/* <label className="flex flex-col">
             <span className="text-sm text-gray-600">Merchant Type</span>
 
             <input
               value={profile.merchant_type || ""}
+              disabled={saving}
               onChange={(e)=>
                 update(
                   "merchant_type",
@@ -642,40 +836,56 @@ const handleSaveWorkingHours = async () => {
               placeholder="Enter merchant type"
               className="mt-1 p-2 border rounded-xl"
             />
-          </label>
+          </label> */}
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Operating Hours</span>
-              <input value={profile.hours} onChange={(e)=>update("hours", e.target.value)} placeholder="09:00 - 21:00" className="mt-1 p-2 border rounded-xl" />
+              <input value={profile.hours} 
+              disabled={saving}
+              onChange={(e)=>update("hours", e.target.value)} placeholder="09:00 - 21:00" className="mt-1 p-2 border rounded-xl" />
               <button
               type="button"
               onClick={handleSaveWorkingHours}
+              disabled={hoursLoading}
               className="mt-2 px-4 py-2 bg-orange-500 text-white rounded-xl"
             >
-              Save Hours
+              {
+                hoursLoading
+                  ? "Saving..."
+                  : "Save Hours"
+              }
             </button>
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Contact Number (read-only)</span>
               {/* contact is read-only */}
-              <input value={profile.contact} readOnly className="mt-1 p-2 border rounded-xl bg-gray-50" />
+              <input value={profile.contact} readOnly 
+              disabled={saving}
+              className="mt-1 p-2 border rounded-xl bg-gray-50" />
             </label>
 
             <label className="flex flex-col md:col-span-2">
               <span className="text-sm text-gray-600">Email Address</span>
               {/* email editable (comes from signup) */}
-              <input value={profile.email} onChange={(e)=>update("email", e.target.value)} placeholder="store@example.com" className="mt-1 p-2 border rounded-xl" />
+              <input value={profile.email} 
+              disabled={saving}
+              onChange={(e)=>update("email", e.target.value)} placeholder="store@example.com" className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <label className="flex flex-col md:col-span-2">
               <span className="text-sm text-gray-600">Store Description</span>
-              <textarea value={profile.description} onChange={(e)=>update("description", e.target.value)} placeholder="Short description for customers" className="mt-1 p-2 border rounded-xl" />
+              <textarea disabled={saving} value={profile.description} onChange={(e)=>update("description", e.target.value)} placeholder="Short description for customers" className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Store Logo / Banner</span>
-              <input type="file" accept="image/*"onChange={(e)=> {
+              <input type="file" 
+              disabled={saving}
+              onClick={(e) => {
+                e.target.value = null;
+              }}
+              accept="image/*"onChange={(e)=> {
                 const file = e.target.files?.[0];
                 if (!file) return;
 
@@ -696,6 +906,7 @@ const handleSaveWorkingHours = async () => {
       <span className="text-sm text-gray-600 mb-1">First Name</span>
       <input
         value={profile.first_name || ""}
+        disabled={saving}
         onChange={(e) =>
           update(
             "first_name",
@@ -712,6 +923,7 @@ const handleSaveWorkingHours = async () => {
       <span className="text-sm text-gray-600 mb-1">Last Name</span>
       <input
         value={profile.last_name || ""}
+        disabled={saving}
         onChange={(e) =>
           update(
             "last_name",
@@ -743,6 +955,7 @@ const handleSaveWorkingHours = async () => {
       <span className="text-sm text-gray-600 mb-1">Date of Birth</span>
       <input
         type="date"
+        disabled={saving}
         value={profile.dob || ""}
         onChange={(e) => update("dob", e.target.value)}
         className="p-2 border rounded-xl"
@@ -755,6 +968,10 @@ const handleSaveWorkingHours = async () => {
 
       <input
         type="file"
+        disabled={saving}
+        onClick={(e) => {
+        e.target.value = null;
+      }}
         accept="image/*"
         onChange={(e) =>
           update("profile_photo", e.target.files?.[0])
@@ -766,7 +983,7 @@ const handleSaveWorkingHours = async () => {
         <img
           src={
             profile.profile_photo instanceof File
-              ? URL.createObjectURL(profile.profile_photo)
+              ? getImagePreview(profile.profile_photo)
               : profile.profile_photo
           }
           alt="Profile"
@@ -784,18 +1001,22 @@ const handleSaveWorkingHours = async () => {
       <input
         value={profile.contact}
         readOnly
+        disabled={saving}
         className="p-2 border rounded-xl bg-gray-100"
       />
     </label>
 
     {/* GST */}
-    <label className="flex flex-col">
+    <label className="flex flex-col">      
       <span className="text-sm text-gray-600 mb-1">
         GST Number
       </span>
 
       <input
+      maxLength={15}
+      pattern="[0-9A-Z]{15}"
         value={profile.gst || ""}
+        disabled={saving}
         onChange={(e) =>
           update("gst", e.target.value.toUpperCase())
         }
@@ -812,6 +1033,7 @@ const handleSaveWorkingHours = async () => {
 
       <input
         value={profile.fssai || ""}
+        disabled={saving}
         onChange={(e) =>
           update("fssai", e.target.value.toUpperCase())
         }
@@ -827,7 +1049,10 @@ const handleSaveWorkingHours = async () => {
       </span>
 
       <input
+        maxLength={10}
+        pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
         value={profile.pan || ""}
+        disabled={saving}
         onChange={(e) =>
           update("pan", e.target.value.toUpperCase())
         }
@@ -843,7 +1068,9 @@ const handleSaveWorkingHours = async () => {
   </span>
 
   <input
+    maxLength={12}
     value={profile.aadhaar_number || ""}
+    disabled={saving}
     onChange={(e) =>
       update(
         "aadhaar_number",
@@ -862,33 +1089,64 @@ const handleSaveWorkingHours = async () => {
         <section className="bg-white rounded-2xl p-4 shadow space-y-3">
           <h3 className="font-semibold text-lg">⚙️ Business Settings</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
-            <div className="flex items-center justify-between">
+            {/* <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm text-gray-600">Online / Offline</div>
                 <div className="text-xs text-gray-500">Accept orders</div>
               </div>
               <button
-                onClick={() => setOnline((s) => !s)}
-                className={`w-16 h-8 flex items-center rounded-full p-1 ${online ? "bg-orange-400" : "bg-gray-300"}`}
+                onClick={async () => {
+
+                  if (onlineLoading) return;
+
+                  try {
+
+                    setOnlineLoading(true);
+
+                    setOnline((s) => !s);
+
+                  } finally {
+
+                    setTimeout(() => {
+                      setOnlineLoading(false);
+                    }, 500);
+                  }
+                }}
+                className={`w-16 h-8 flex items-center rounded-full p-1 ${
+                  online
+                    ? "bg-orange-500"
+                    : "bg-gray-300"
+                }
+
+                ${
+                  onlineLoading
+                    ? "opacity-60 cursor-not-allowed pointer-events-none"
+                    : ""
+                }`}
                 title="Toggle online/offline"
               >
-                <div className={`bg-white w-6 h-6 rounded-full transform ${online ? "translate-x-8" : "translate-x-0"}`} />
+                <div className={`bg-white w-6 h-6 rounded-full transform transition-all duration-300 ${online ? "translate-x-8" : "translate-x-0"}`} />
               </button>
-            </div>
+            </div> */}
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Delivery Radius (km)</span>
-              <input type="number" value={profile.deliveryRadius} onChange={(e)=>update("deliveryRadius", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
+              <input type="number" value={profile.deliveryRadius ?? ""} 
+              disabled={saving}
+              onChange={(e)=>update("deliveryRadius", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Estimated Delivery Time (mins)</span>
-              <input type="number" value={profile.etaMins} onChange={(e)=>update("etaMins", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
+              <input type="number" value={profile.etaMins} disabled={saving}
+              onChange={(e)=>update("etaMins", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Minimum Order Amount (₹)</span>
-              <input type="number" value={profile.minOrder} onChange={(e)=>update("minOrder", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
+              <input type="number" value={profile.minOrder} 
+              disabled={saving}
+              onChange={(e)=>update("minOrder", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
             </label>
 
               {/* Commission Type */}
@@ -899,6 +1157,7 @@ const handleSaveWorkingHours = async () => {
 
                 <input
                   value={profile.commission_type || ""}
+                  disabled={saving}
                   onChange={(e)=>
                     update("commission_type", e.target.value)
                   }
@@ -913,14 +1172,29 @@ const handleSaveWorkingHours = async () => {
                   Food
                 </span>
 
-                <input
-                  value={profile.food || ""}
-                  onChange={(e)=>
-                    update("food", e.target.value)
-                  }
-                  placeholder="Veg / Non Veg / Both"
-                  className="mt-1 p-2 border rounded-xl"
-                />
+               <select
+                value={profile.food || ""}
+                onChange={(e) =>
+                  update("food", e.target.value)
+                }
+                className="mt-1 p-2 border rounded-xl"
+              >
+                <option value="">
+                  Select Food Type
+                </option>
+
+                <option value="Veg">
+                  Veg
+                </option>
+
+                <option value="Non Veg">
+                  Non Veg
+                </option>
+
+                <option value="Both">
+                  Both
+                </option>
+              </select>
               </label>
 
               {/* Latitude */}
@@ -930,6 +1204,7 @@ const handleSaveWorkingHours = async () => {
                 </span>
 
                 <input
+                disabled={saving}
                   value={profile.latitude || ""}
                   onChange={(e)=>
                     update(
@@ -949,6 +1224,7 @@ const handleSaveWorkingHours = async () => {
                 </span>
 
                 <input
+                disabled={saving}
                   value={profile.longitude || ""}
                   onChange={(e)=>
                     update(
@@ -963,7 +1239,9 @@ const handleSaveWorkingHours = async () => {
 
             <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center gap-2">
-                <input type="checkbox" checked={true} readOnly />
+                <input type="checkbox" 
+                disabled={saving}
+                checked={true} readOnly />
                 <span className="text-sm">Cash on Delivery (always available)</span>
               </div>
 
@@ -1012,11 +1290,15 @@ const handleSaveWorkingHours = async () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Bank Name</span>
-              <input value={profile?.payout?.bankName} onChange={(e)=>update("payout.bankName", e.target.value)} className="mt-1 p-2 border rounded-xl" />
+              <input value={profile?.payout?.bankName} 
+              disabled={saving}
+              onChange={(e)=>update("payout.bankName", e.target.value)} className="mt-1 p-2 border rounded-xl" />
             </label>
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Account Number</span>
-              <input value={profile?.payout?.account} onChange={(e)=>
+              <input value={profile?.payout?.account} 
+              disabled={saving}
+              onChange={(e)=>
               update(
                 "payout.account",
                 e.target.value.replace(/\D/g,"")
@@ -1027,14 +1309,21 @@ const handleSaveWorkingHours = async () => {
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">UPI ID</span>
-              <input value={profile?.payout?.upi} onChange={(e)=>update("payout.upi", e.target.value)} className="mt-1 p-2 border rounded-xl" />
+              <input value={profile?.payout?.upi} 
+              disabled={saving}
+              onChange={(e)=>update("payout.upi", e.target.value)} className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <div className="flex items-center gap-3">
-              <button onClick={handleBankVerify} disabled={profile?.payout?.verified} className={`px-4 py-2 rounded-xl ${profile?.payout?.verified ? "bg-gray-300" : "bg-orange-500 text-white"}`}>
+              <button onClick={handleBankVerify} disabled={
+                bankLoading ||
+                profile?.payout?.verified
+              } className={`px-4 py-2 rounded-xl ${profile?.payout?.verified ? "bg-gray-300" : "bg-orange-500 text-white"}`}>
                 {profile?.payout?.verified ? "Verified" : "Verify Bank"}
               </button>
-              <button onClick={()=> { update("payout.verified", false); alert("Request for re-verification sent (demo)") }} className="px-3 py-2 rounded-xl border">Request Reverify</button>
+              <button onClick={()=> { update("payout.verified", false); toast.success(
+                "Re-verification request sent"
+              ) }} className="px-3 py-2 rounded-xl border">Request Reverify</button>
             </div>
           </div>
         </section>
@@ -1045,28 +1334,42 @@ const handleSaveWorkingHours = async () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="p-3 border rounded-xl">
               <div className="text-sm text-gray-600">Business License</div>
-              <input type="file" accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "license")} className="mt-2" />
+              <input type="file" 
+              disabled={saving}            
+              onClick={(e) => {
+              e.target.value = null;
+            }}
+              accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "license")} className="mt-2" />
               {profile?.documents?.license && <img
               src={
                 profile?.documents?.license instanceof File
-                  ? URL.createObjectURL(profile.documents.license)
+                  ? getImagePreview(profile.documents.license)
                   : profile.documents.license
               } alt="lic" className="mt-2 w-full h-24 object-cover rounded" />}
             </div>
             <div className="p-3 border rounded-xl">
               <div className="text-sm text-gray-600">GST Certificate</div>
-              <input type="file" accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "gst")} className="mt-2" />
+              <input type="file" 
+              disabled={saving}
+              onClick={(e) => {
+              e.target.value = null;
+            }}
+              accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "gst")} className="mt-2" />
               {profile?.documents?.gst && <img
               src={
                 profile?.documents?.gst instanceof File
-                  ? URL.createObjectURL(profile.documents.gst)
+                  ? getImagePreview(profile.documents.gst)
                   : profile.documents.gst
               } alt="gst" className="mt-2 w-full h-24 object-cover rounded" />}
             </div>
             <div className="p-3 border rounded-xl">
              <div className="text-sm text-gray-600">PAN Card</div>
               <input
+              disabled={saving}
               type="file"
+              onClick={(e) => {
+              e.target.value = null;
+            }}
               accept="image/*,.pdf"
               onChange={(e)=>onFileChange(e, "pan")}
               className="mt-2"
@@ -1074,7 +1377,7 @@ const handleSaveWorkingHours = async () => {
               {profile?.documents?.pan && <img
               src={
                 profile?.documents?.pan instanceof File
-                  ? URL.createObjectURL(profile.documents.pan)
+                  ? getImagePreview(profile.documents.pan)
                   : profile.documents.pan
               } alt="id" className="mt-2 w-full h-24 object-cover rounded" />}
             </div>
@@ -1084,7 +1387,11 @@ const handleSaveWorkingHours = async () => {
   </div>
 
   <input
+  disabled={saving}
     type="file"
+     onClick={(e) => {
+     e.target.value = null;
+      }}
     accept="image/*,.pdf"
     onChange={(e)=>onFileChange(e,"fssai")}
     className="mt-2"
@@ -1094,7 +1401,7 @@ const handleSaveWorkingHours = async () => {
     <img
       src={
         profile.documents.fssai instanceof File
-          ? URL.createObjectURL(profile.documents.fssai)
+          ? getImagePreview(profile.documents.fssai)
           : profile.documents.fssai
       }
       alt="fssai"
@@ -1109,7 +1416,12 @@ const handleSaveWorkingHours = async () => {
   </div>
 
   <input
+  disabled={saving}
     type="file"
+      onClick={(e) => {
+      e.target.value = null;
+      }}
+
     accept="image/*,.pdf"
     onChange={(e)=>onFileChange(e,"aadhaar")}
     className="mt-2"
@@ -1119,7 +1431,7 @@ const handleSaveWorkingHours = async () => {
     <img
       src={
         profile.documents.aadhaar instanceof File
-          ? URL.createObjectURL(profile.documents.aadhaar)
+          ? getImagePreview(profile.documents.aadhaar)
           : profile.documents.aadhaar
       }
       alt="aadhaar"
@@ -1137,16 +1449,22 @@ const handleSaveWorkingHours = async () => {
             <div>
               <div className="text-sm text-gray-600">Help & Support</div>
               <div className="mt-2 flex gap-2">
-                <button onClick={()=>alert("Opening chat (demo)")} className="px-3 py-2 rounded-xl bg-orange-500 text-white">Chat with support</button>
+                <button onClick={()=>toast(
+                  "Support chat coming soon"
+                )} className="px-3 py-2 rounded-xl bg-orange-500 text-white">Chat with support</button>
                 <button onClick={()=> window.open("tel:+911234567890")} className="px-3 py-2 rounded-xl border">Call</button>
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-600">Legal</div>
               <div className="mt-2 flex gap-2">
-                <button onClick={()=>alert("Open Terms (demo)")} className="px-3 py-2 rounded-xl border">Terms & Conditions</button>
-                <button onClick={()=>alert("Open Privacy (demo)")} className="px-3 py-2 rounded-xl border">Privacy Policy</button>
-              </div>
+                <button onClick={()=>toast(
+                  "Terms & Conditions coming soon"
+                )} className="px-3 py-2 rounded-xl border">Terms & Conditions</button>
+                <button onClick={()=>toast(
+                  "Privacy Policy coming soon"
+                )} className="px-3 py-2 rounded-xl border">Privacy Policy</button>
+               </div>
             </div>
           </div>
 
@@ -1156,9 +1474,24 @@ const handleSaveWorkingHours = async () => {
              <button
                 onClick={handleSave}
                 disabled={saving}
-              className="px-4 py-2 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-xl">{saving ? "Saving..." : "Save Details"}
+             className={`
+                px-4 py-2 rounded-xl text-white
+                bg-gradient-to-r from-orange-400 to-amber-400
+
+                ${
+                  saving
+                    ? "opacity-70 cursor-not-allowed pointer-events-none"
+                    : ""
+                }
+              `}>{
+                  saving
+                    ? "Saving Details..."
+                    : "Save Details"
+                }
               </button>
-              <button onClick={logout} className="px-4 py-2 rounded-xl border text-red-500">Logout</button>
+              <button onClick={logout}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl border text-red-500">Logout</button>
             </div>
           </div>
         </section>

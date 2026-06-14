@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { saveAuthData } from "../utils/auth";
 import { verifyOtp } from "../services/otpApi";
 import api from "../services/api";
-
+import toast from "react-hot-toast";
 
 export default function OtpPage() {
   const navigate = useNavigate();
@@ -24,6 +24,13 @@ export default function OtpPage() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(30);
   const [resendVisible, setResendVisible] = useState(false);
+
+  const [verifyLoading, setVerifyLoading] =
+  useState(false);
+
+  const [resendLoading, setResendLoading] =
+  useState(false);
+
   const inputsRef = useRef([]);
 
   // handle OTP input and navigation
@@ -72,67 +79,135 @@ export default function OtpPage() {
 
 // ✅ Verify handler — now redirects to /home when OTP is valid
   const handleVerify = async () => {
+
+  // PREVENT MULTIPLE CLICKS
+  if (verifyLoading) return;
+
   const code = otp.join("");
 
   if (code.length !== 6) {
-    alert("Please enter 6 digits");
+    toast.error("Please enter 6 digits");
     return;
   }
 
   try {
-    const data = await verifyOtp({
-      mobile: location.state?.mobile,
-      otp: code,
-    });
+
+    setVerifyLoading(true);
+
+    const data =
+      await verifyOtp({
+        mobile:
+          location.state?.mobile,
+        otp: code,
+      });
 
     if (!data.status) {
-      alert(data.message || "OTP verification failed");
+
+      toast.error(
+      data.message ||
+      "OTP verification failed"
+    );
       return;
     }
 
-    // ✅ STORE JWT + USER
-    const accessToken = data.access || data.accessToken || data.token;
-    const refreshToken = data.refresh || data.refreshToken || "";
+    const accessToken =
+      data.access ||
+      data.accessToken ||
+      data.token;
+
+    const refreshToken =
+      data.refresh ||
+      data.refreshToken ||
+      "";
 
     if (!accessToken) {
-      alert("Login succeeded but token was missing in response.");
+
+      toast.error(
+        "Token missing in response."
+      );
+
       return;
     }
 
     saveAuthData({
-  access: accessToken,
-  refresh: refreshToken,
-  user: data.user || null,
+      access: accessToken,
+      refresh: refreshToken,
+      user: data.user || null,
+    });
+
+      toast.success(
+        "OTP verified successfully"
+      );
+
+    if (data.user?.id) {
+      localStorage.setItem(
+        "user_id",
+        data.user.id
+      );
+    }
+
+    navigate("/dashboard", {
+  replace: true,
 });
 
-if (data.user?.id) {
-  localStorage.setItem("user_id", data.user.id);
-}
-
-navigate("/dashboard", { replace: true });
-
-    // ✅ REDIRECT
-    
-// TO THIS:
-navigate("/dashboard", { replace: true });
   } catch (err) {
+
     console.error(err);
-    alert("Server error. Please try again.");
-  }
+
+    toast.error(
+        "Server error. Please try again."
+      );
+
+  } finally {
+
+  setVerifyLoading(false);
+
+}
 };
 
 
  const handleResend = async () => {
-  setTimer(30);
-  setResendVisible(false);
+
+  if (
+    resendLoading ||
+    timer > 0
+  ) return;
 
   try {
-    await api.post("/api/v1/users/admin/request-otp/", {
-      mobile: location.state?.mobile,
-    });
+
+    setResendLoading(true);
+
+    setTimer(30);
+
+    setResendVisible(false);
+
+    await api.post(
+      "/api/v1/users/admin/request-otp/",
+      {
+        mobile:
+          location.state?.mobile,
+      }
+    );
+
+    toast.success(
+  "OTP resent successfully"
+);
+
   } catch (e) {
-    alert("Failed to resend OTP");
-  }
+
+    console.error(e);
+
+    toast.error(
+      "Failed to resend OTP"
+    );
+
+    setResendVisible(true);
+
+  } finally {
+
+  setResendLoading(false);
+
+}
 };
 
 
@@ -152,9 +227,28 @@ useEffect(() => {
     {/* 🔸 HEADER */}
 <header className="bg-orange-500 text-white py-4 px-6 relative">
   {/* Minimal Back Button */}
-  <button
-    onClick={() => navigate(-1)}
-    className="absolute top-3 left-3 z-20 p-2 rounded-full bg-white shadow hover:bg-gray-100 transition"
+   <button
+
+  disabled={verifyLoading}
+
+  onClick={() => {
+
+    if (verifyLoading) return;
+
+    navigate(-1);
+
+  }}
+   className={`
+  absolute top-3 left-3 z-20
+  p-2 rounded-full bg-white shadow
+  transition
+
+  ${
+    verifyLoading
+      ? "opacity-50 cursor-not-allowed pointer-events-none"
+      : "hover:bg-gray-100"
+  }
+`}
   >
     <ArrowLeft className="w-5 h-5 text-orange-500" />
   </button>
@@ -184,6 +278,7 @@ useEffect(() => {
           <div className="flex justify-center space-x-3 mb-6">
             {otp.map((digit, index) => (
               <input
+              disabled={verifyLoading}
                 key={index}
                 id={`otp-${index}`}
                 type="text"
@@ -193,7 +288,17 @@ useEffect(() => {
                 onChange={(e) => handleChange(e.target.value, index)}
                 onKeyDown={(e) => handleKeyDown(e, index)}
                 onPaste={index === 0 ? handlePaste : undefined}
-                className="w-10 h-10 text-center text-lg border border-gray-300 rounded-md focus:outline-none focus:border-orange-500"
+                className={`
+                  w-10 h-10 text-center
+                  text-lg border border-gray-300
+                  rounded-md transition-all
+
+                  ${
+                    verifyLoading
+                      ? "bg-gray-100 opacity-70 cursor-not-allowed pointer-events-none"
+                      : "focus:outline-none focus:border-orange-500"
+                  }
+                `}
               />
             ))}
           </div>
@@ -203,11 +308,28 @@ useEffect(() => {
             {!resendVisible ? (
               <p className="text-gray-500">Resend SMS in {timer}s</p>
             ) : (
-              <button
-                onClick={handleResend}
-                className="text-orange-500 font-semibold hover:underline"
+             <button
+              onClick={handleResend}
+              disabled={
+                resendLoading ||
+                timer > 0
+              }
+                className={`
+                text-orange-500 font-semibold
+                hover:underline transition-all
+
+                ${
+                  resendLoading
+                    ? "opacity-50 cursor-not-allowed pointer-events-none"
+                    : ""
+                }
+              `}
               >
-                Resend Code
+               {
+                resendLoading
+                  ? "Sending..."
+                  : "Resend Code"
+              }
               </button>
             )}
           </div>
@@ -215,21 +337,48 @@ useEffect(() => {
           {/* VERIFY BUTTON */}
           <button
             onClick={handleVerify}
-            disabled={!isOtpComplete}
-            className={`w-full py-2 rounded-md font-semibold mb-6 transition duration-300 ${
-              isOtpComplete
+            disabled={
+            !isOtpComplete ||
+            verifyLoading
+          }
+            className={`
+            w-full py-2 rounded-md
+            font-semibold mb-6
+            transition duration-300
+
+            ${
+              isOtpComplete &&
+              !verifyLoading
                 ? "bg-orange-500 hover:bg-orange-600 text-white shadow-md"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
+                : "bg-gray-300 text-gray-500 cursor-not-allowed opacity-70 pointer-events-none"
+            }
+          `}
           >
-            Verify OTP
+           {
+            verifyLoading
+              ? "Verifying..."
+              : "Verify OTP"
+          }
           </button>
 
           {/* BACK BUTTON */}
           <div className="text-center">
             <button
-              onClick={() => navigate("/")}
-              className="border border-orange-500 text-orange-500 px-4 py-2 rounded-md hover:bg-orange-500 hover:text-white transition duration-300"
+            disabled={verifyLoading}
+            onClick={() => {
+
+              if (verifyLoading) return;
+
+              navigate("/");
+            }}
+            
+              className={`border border-orange-500 text-orange-500 px-4 py-2 rounded-md hover:bg-orange-500 hover:text-white transition duration-300
+              ${
+                verifyLoading
+                  ? "opacity-50 cursor-not-allowed pointer-events-none"
+                  : ""
+              }
+              `}
             >
               Go back to login methods
             </button>

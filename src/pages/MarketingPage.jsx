@@ -9,6 +9,12 @@ export default function MarketingPage() {
   const [dateRange, setDateRange] = useState("last7days");
   const [campaignType, setCampaignType] = useState("all");
 
+  const [filterLoading, setFilterLoading] =
+  useState(false);
+
+  const [exportLoading, setExportLoading] =
+  useState(false);
+
   // Dummy data
   const couponData = [
     { name: "Discount 10%", usage: 120 },
@@ -28,6 +34,68 @@ export default function MarketingPage() {
     { name: "User C", referred: 2 },
   ];
 
+  const handleExportCSV = async () => {
+
+  if (exportLoading) return;
+
+  try {
+
+    setExportLoading(true);
+
+    const rows = revenueData.map((r) => ({
+      campaign: r.name,
+      revenue: r.revenue,
+    }));
+
+    const csvContent = [
+      ["Campaign", "Revenue"],
+      ...rows.map((r) => [
+        r.campaign,
+        r.revenue,
+      ]),
+    ]
+      .map((e) => e.join(","))
+      .join("\n");
+
+    const blob = new Blob(
+      [csvContent],
+      {
+        type:
+          "text/csv;charset=utf-8;",
+      }
+    );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.setAttribute(
+      "download",
+      "marketing-report.csv"
+    );
+
+    link.click();
+
+  } catch (err) {
+
+    console.error(
+      "Export Error",
+      err
+    );
+
+  } finally {
+
+    setTimeout(() => {
+      setExportLoading(false);
+    }, 800);
+  }
+};
+
+
   return (
     <div className="min-h-screen bg-[#fff9f4] p-5 space-y-6">
       {/* Header */}
@@ -43,14 +111,102 @@ export default function MarketingPage() {
 
       {/* Filters */}
       <div className="flex gap-3 items-center">
-        <button className="flex items-center gap-1 border px-3 py-1 rounded-full">
+        <button
+          disabled={filterLoading}
+          onClick={async () => {
+
+            if (filterLoading) return;
+
+            try {
+
+              setFilterLoading(true);
+
+              setDateRange((prev) =>
+                prev === "last7days"
+                  ? "custom"
+                  : "last7days"
+              );
+
+            } finally {
+
+              setTimeout(() => {
+                setFilterLoading(false);
+              }, 400);
+            }
+          }}
+          className={`
+            flex items-center gap-1
+            border px-3 py-1 rounded-full
+            transition-all
+
+            ${
+              filterLoading
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }
+          `}
+        >
           <Filter size={16} /> {dateRange === "last7days" ? "Last 7 Days" : "Custom Range"}
         </button>
-        <button className="flex items-center gap-1 border px-3 py-1 rounded-full">
+        <button
+          disabled={filterLoading}
+          onClick={async () => {
+
+            if (filterLoading) return;
+
+            try {
+
+              setFilterLoading(true);
+
+              setCampaignType((prev) =>
+                prev === "all"
+                  ? "discount"
+                  : "all"
+              );
+
+            } finally {
+
+              setTimeout(() => {
+                setFilterLoading(false);
+              }, 400);
+            }
+          }}
+          className={`
+            flex items-center gap-1
+            border px-3 py-1 rounded-full
+            transition-all
+
+            ${
+              filterLoading
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }
+          `}
+        >
           <Filter size={16} /> {campaignType === "all" ? "All Campaigns" : campaignType}
         </button>
-        <button className="flex items-center gap-1 border px-3 py-1 rounded-full">
-          <Download size={16} /> Export CSV
+        <button
+          onClick={handleExportCSV}
+          disabled={exportLoading}
+          className={`
+            flex items-center gap-1
+            border px-3 py-1 rounded-full
+            transition-all
+
+            ${
+              exportLoading
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }
+          `}
+        >
+          <Download size={16} />
+
+        {
+          exportLoading
+            ? "Exporting..."
+            : "Export CSV"
+        }
         </button>
       </div>
 

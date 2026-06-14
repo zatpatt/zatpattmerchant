@@ -6,6 +6,8 @@ import {
 } from "recharts";
 import { ArrowLeft, Download, ArrowUp, ArrowDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
 
 // Sample Data
 const salesSummary = [
@@ -69,23 +71,76 @@ export default function AnalyticsPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [forecastRevenue, setForecastRevenue] = useState(0);
 
+  const [exportLoading, setExportLoading] =
+  useState(false);
+
+  const [filterLoading, setFilterLoading] =
+    useState(false);
+
   useEffect(() => {
     // Simple next-week revenue forecast: avg of last 7 days * 7
     const avgRevenue = revenueTrend.reduce((sum, d) => sum + d.revenue, 0) / revenueTrend.length;
     setForecastRevenue(Math.round(avgRevenue * 7));
   }, [revenueTrend]);
 
-  const downloadCSV = () => {
+  const downloadCSV = async () => {
+
+  if (exportLoading) return;
+
+  try {
+
+    setExportLoading(true);
+
     const header = ["Metric", "Value"];
-    const rows = salesSummary.map(s => [s.title, s.value]);
-    const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+
+    const rows =
+      salesSummary.map((s) => [
+        s.title,
+        s.value,
+      ]);
+
+    const csvContent =
+      [header, ...rows]
+        .map((e) => e.join(","))
+        .join("\n");
+
+    const blob = new Blob(
+      [csvContent],
+      {
+        type:
+          "text/csv;charset=utf-8;",
+      }
+    );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
     link.href = url;
-    link.setAttribute("download","analytics.csv");
+
+    link.setAttribute(
+      "download",
+      "analytics.csv"
+    );
+
     link.click();
-  };
+
+  } catch (err) {
+
+    console.error(
+      "CSV Export Error",
+      err
+    );
+
+  } finally {
+
+    setTimeout(() => {
+      setExportLoading(false);
+    }, 1000);
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#fff9f4]">
@@ -109,7 +164,29 @@ export default function AnalyticsPage() {
         <div className="flex items-center space-x-3">
           <select
             value={dateRange}
-            onChange={e => setDateRange(e.target.value)}
+            disabled={filterLoading}
+            onChange={async (e) => {
+
+          if (filterLoading) return;
+
+          try {
+
+            setFilterLoading(true);
+
+            setDateRange(e.target.value);
+
+          } catch (err) {
+
+            toast.error(
+              "Failed to update filter"
+            );
+
+          } finally {
+
+            setFilterLoading(false);
+
+          }
+        }}
             className="p-2 border rounded"
           >
             <option>Today</option>
@@ -118,8 +195,34 @@ export default function AnalyticsPage() {
             <option>Custom</option>
           </select>
           <select
+          
             value={categoryFilter}
-            onChange={e => setCategoryFilter(e.target.value)}
+            disabled={filterLoading}
+            
+            onChange={async (e) => {
+
+            if (filterLoading) return;
+
+            try {
+
+              setFilterLoading(true);
+
+              setCategoryFilter(
+                e.target.value
+              );
+
+            } catch (err) {
+
+              toast.error(
+                "Failed to update category"
+              );
+
+            } finally {
+
+              setFilterLoading(false);
+
+            }
+          }}
             className="p-2 border rounded"
           >
             <option>All</option>
@@ -128,8 +231,29 @@ export default function AnalyticsPage() {
             <option>Dairy</option>
             <option>Beverages</option>
           </select>
-          <button onClick={downloadCSV} className="ml-auto flex items-center px-3 py-2 bg-orange-500 text-white rounded-xl">
-            <Download size={16} className="mr-1" /> Export CSV
+          <button
+          onClick={downloadCSV}
+          disabled={exportLoading} className={`
+            ml-auto flex items-center
+            px-3 py-2 rounded-xl
+            text-white transition-all
+
+            ${
+              exportLoading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-orange-500"
+            }
+          `}>
+            <Download
+            size={16}
+            className="mr-1"
+          />
+
+          {
+            exportLoading
+              ? "Exporting..."
+              : "Export CSV"
+          }
           </button>
         </div>
 

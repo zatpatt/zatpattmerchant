@@ -24,12 +24,26 @@ export const addMerchantMenu = async (payload) => {
   formData.append("menu_description", payload.menu_description);
   formData.append("is_veg", payload.is_veg ? "True" : "False");
   formData.append("menu_price", String(payload.menu_price));
+  formData.append(
+  "is_active",
+  payload.is_active ? "True" : "False"
+);
+
+formData.append(
+  "has_quantity",
+  payload.has_quantity ? "True" : "False"
+);
+
+formData.append(
+  "quantity",
+  String(payload.quantity || 0)
+);
   formData.append("discounted_price", String(payload.discounted_price));
   formData.append("label", payload.label);
   formData.append("user", String(payload.user));
   // file upload
-  if (payload.manu_image) {
-    formData.append("manu_image", payload.manu_image);
+  if (payload.menu_image) {
+    formData.append("menu_image", payload.menu_image);
   }
 
   const res = await api.post(
@@ -110,5 +124,147 @@ export const editOffer = async (payload) => {
     "/api/v1/common/orders/edit-offer/",
     payload
   );
+  return res.data;
+};
+
+/**
+ * Merchant Menu Insights
+ * POST /api/v1/common/orders/merchant-menu-insights/
+ */
+export const getMenuInsights = async (payload) => {
+  const res = await api.post(
+    "/api/v1/common/orders/merchant-menu-insights/",
+    payload
+  );
+
+  return res.data;
+};
+
+/**
+ * Edit Menu Category
+ * POST /api/v1/common/orders/edit-menu-category/
+ */
+export const editMenuCategory = async (payload) => {
+  const res = await api.post(
+    "/api/v1/common/orders/edit-menu-category/",
+    payload
+  );
+
+  return res.data;
+};
+
+ /**
+ * Get Single Menu Detail
+ * POST /api/v1/common/orders/merchant-menu-detail/
+ */
+export const getMerchantMenuDetail = async (payload) => {
+  const res = await api.post(
+    "/api/v1/common/orders/merchant-menu-detail/",
+    payload
+  );
+
+  return res.data;
+};
+
+/**
+ * Edit Menu
+ * POST /api/v1/common/orders/edit-menu-book/
+ */
+export const editMerchantMenu = async (
+  payload
+) => {
+
+  const formData = new FormData();
+
+  formData.append(
+    "menu_id",
+    String(payload.menu_id)
+  );
+
+  formData.append(
+    "menu_name",
+    payload.menu_name || ""
+  );
+
+  formData.append(
+    "category",
+    payload.category || ""
+  );
+
+  formData.append(
+    "menu_description",
+    payload.menu_description || ""
+  );
+
+  formData.append(
+    "is_active",
+    payload.is_active ? "True" : "False"
+  );
+
+  formData.append(
+    "is_available",
+    payload.is_available ? "True" : "False"
+  );
+
+  formData.append(
+    "is_veg",
+    payload.is_veg ? "True" : "False"
+  );
+
+  formData.append(
+    "has_quantity",
+    payload.has_quantity ? "True" : "False"
+  );
+
+  formData.append(
+    "menu_price",
+    String(payload.menu_price || 0)
+  );
+
+  formData.append(
+    "discounted_price",
+    String(payload.discounted_price || 0)
+  );
+
+  formData.append(
+    "label",
+    payload.label || ""
+  );
+
+  formData.append(
+    "quantity",
+    String(payload.quantity || 0)
+  );
+
+  formData.append(
+    "user",
+    String(payload.user || "")
+  );
+
+  // IMPORTANT FIX
+  if (payload.menu_image instanceof File) {
+
+    console.log(
+      "REAL FILE FOUND:",
+      payload.menu_image
+    );
+
+    formData.append(
+      "menu_image",
+      payload.menu_image,
+      payload.menu_image.name
+    );
+  }
+
+  // DEBUG
+  for (let pair of formData.entries()) {
+    console.log(pair[0], pair[1]);
+  }
+
+  const res = await api.post(
+    "/api/v1/common/orders/edit-menu-book/",
+    formData
+  );
+
   return res.data;
 };

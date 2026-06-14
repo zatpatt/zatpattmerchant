@@ -5,6 +5,8 @@ import HeaderImg from "../assets/Header/Header.png";
 import { LanguageContext } from "../context/LanguageContext";
 import { useNavigate } from "react-router-dom";
 import { requestOtp } from "../services/authApi";
+import toast from "react-hot-toast";
+
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -16,11 +18,20 @@ export default function LoginPage() {
   const [errors, setErrors] = useState({});
   const [isFormValid, setIsFormValid] = useState(false);
 
+  const [loading, setLoading] =  useState(false);
   
 useEffect(() => {
-  if (localStorage.getItem("accessToken")) {
-    navigate("/dashboard", { replace: true }); // ✅ merchant home is /dashboard
+
+  if (
+    localStorage.getItem("accessToken")
+  ) {
+
+    navigate("/dashboard", {
+      replace: true,
+    });
+
   }
+
 }, []);
 
   /* ---------------- VALIDATION ---------------- */
@@ -59,35 +70,66 @@ useEffect(() => {
 
   /* ---------------- CONTINUE ---------------- */
  const handleContinue = async (e) => {
+
   e.preventDefault();
+
+  // PREVENT SPAM CLICK
+  if (loading) return;
+
   if (!isFormValid) return;
 
   try {
+
+    setLoading(true);
+
     const payload = {
-      mobile, // ✅ ONLY MOBILE
+      mobile,
     };
 
-    const data = await requestOtp(payload);
+    const data =
+      await requestOtp(payload);
 
-    if (!data.status) {
-      alert(data.message || "Failed to send OTP");
+    console.log(
+      "OTP RESPONSE",
+      data
+    );
+
+    if (!data?.status) {
+
+     toast.error(
+     data.message ||
+        "Failed to send OTP"
+      );
+
       return;
     }
 
-    // ✅ Navigate to OTP page
+    toast.success(
+  "OTP sent successfully"
+);
+
     navigate("/otp", {
       state: {
         mobile,
-        email,         // keep if you want later
-        referralCode,  // keep if you want later
+        email,
+        referralCode,
       },
     });
-  } catch (err) {
-    console.error(err);
-    alert("Server error. Please try again.");
-  }
-};
 
+  } catch (err) {
+
+    console.error(err);
+
+    toast.error(
+    "Server error. Please try again."
+    );
+
+  } finally {
+
+  setLoading(false);
+
+}
+};
 
 
 
@@ -129,13 +171,25 @@ useEffect(() => {
                   Mobile Number <span className="text-red-600">*</span>
                 </label>
                 <input
+                disabled={loading}
                   value={mobile}
                   onChange={(e) =>
                     setMobile(e.target.value.replace(/\D/g, ""))
                   }
                   placeholder="Enter 10-digit mobile number"
                   maxLength={10}
-                  className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                  className={`
+                  mt-1 w-full border
+                  border-gray-300 rounded
+                  px-3 py-2 text-sm
+                  outline-none transition-all
+
+                  ${
+                    loading
+                    ? "bg-gray-100 cursor-not-allowed opacity-70 pointer-events-none"
+                    : "focus:ring-2 focus:ring-orange-400"
+                  }
+                `}
                 />
                 {errors.mobile && (
                   <p className="text-red-600 text-xs mt-1">
@@ -145,10 +199,10 @@ useEffect(() => {
               </div>
 
               {/* EMAIL */}
-              <div>
+              {/* <div>
                 <label className="text-sm text-gray-700">
-                   Email {/* <span className="text-gray-400">(optional)</span> */}
-                </label>
+                   Email <span className="text-gray-400">(optional)</span> */}
+                {/* </label>
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value.trim())}
@@ -160,7 +214,7 @@ useEffect(() => {
                     {errors.email}
                   </p>
                 )}
-              </div>
+              </div> */}
 
               {/* REFERRAL */}
               {/* <div>
@@ -186,14 +240,27 @@ useEffect(() => {
               {/* SUBMIT */}
               <button
                 type="submit"
-                disabled={!isFormValid}
-                className={`w-full py-2.5 rounded-md text-white font-semibold text-sm transition ${
-                  isFormValid
-                    ? "bg-orange-500 hover:bg-orange-600"
-                    : "bg-gray-300 cursor-not-allowed"
-                }`}
+                disabled={
+                  !isFormValid ||
+                  loading
+                }
+                className={`
+              w-full py-2.5 rounded-md
+              text-white font-semibold text-sm
+              transition
+
+              ${
+                isFormValid && !loading
+                  ? "bg-orange-500 hover:bg-orange-600"
+                  : "bg-gray-300 cursor-not-allowed opacity-70 pointer-events-none"
+              }
+            `}
               >
-                {t("continue")}
+                {
+                loading
+                  ? "Sending OTP..."
+                  : t("continue")
+              }
               </button>
 
               {/* OR */}
@@ -220,7 +287,7 @@ useEffect(() => {
       </main>
 
       <footer className="bg-gradient-to-r from-orange-500 via-orange-400 to-yellow-400 text-white text-center py-4 pb-6 text-sm mt-auto">
-        {t("footer")}
+        {t("ZATPATT")}
       </footer>
     </div>
   );

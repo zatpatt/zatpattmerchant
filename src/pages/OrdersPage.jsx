@@ -6,6 +6,8 @@ import { NotificationContext } from "../context/NotificationContext";
 import { useNavigate } from "react-router-dom";
 import { getMerchantOrders } from "../services/merchantOrders";
 import { useLocation } from "react-router-dom";
+import toast from "react-hot-toast";
+
 
 /*
  CLEAN ORDERS PAGE (MINIMAL VERSION)
@@ -37,41 +39,41 @@ const makeDemoOrder = (id, status = "New", minutesAgo = 2) => {
 };
 
 /* --- Tiny Toast Provider --- */
-const ToastContext = React.createContext(null);
-function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([]);
-  const push = (msg) => {
-    const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, msg }]);
-    setTimeout(() => remove(id), 3000);
-  };
-  const remove = (id) => setToasts((t) => t.filter((x) => x.id !== id));
+// const ToastContext = React.createContext(null);
+// function ToastProvider({ children }) {
+//   const [toasts, setToasts] = useState([]);
+//   const push = (msg) => {
+//     const id = Date.now() + Math.random();
+//     setToasts((t) => [...t, { id, msg }]);
+//     setTimeout(() => remove(id), 3000);
+//   };
+//   const remove = (id) => setToasts((t) => t.filter((x) => x.id !== id));
 
-  return (
-    <ToastContext.Provider value={{ push }}>
-      {children}
-      <div className="fixed right-4 top-4 z-50 flex flex-col gap-2">
-        <AnimatePresence>
-          {toasts.map((t) => (
-            <motion.div
-              key={t.id}
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="bg-black text-white px-4 py-2 rounded-md shadow"
-            >
-              {t.msg}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-    </ToastContext.Provider>
-  );
-}
+//   return (
+//     <ToastContext.Provider value={{ push }}>
+//       {children}
+//       <div className="fixed right-4 top-4 z-50 flex flex-col gap-2">
+//         <AnimatePresence>
+//           {toasts.map((t) => (
+//             <motion.div
+//               key={t.id}
+//               initial={{ opacity: 0, y: -6 }}
+//               animate={{ opacity: 1, y: 0 }}
+//               exit={{ opacity: 0, y: -6 }}
+//               className="bg-black text-white px-4 py-2 rounded-md shadow"
+//             >
+//               {t.msg}
+//             </motion.div>
+//           ))}
+//         </AnimatePresence>
+//       </div>
+//     </ToastContext.Provider>
+//   );
+// }
 
 export default function OrdersPage() {
   const notificationCtx = useContext(NotificationContext || {});
-  const toast = React.useContext(ToastContext) || { push: (m) => console.log(m) };
+  // const toast = React.useContext(ToastContext) || { push: (m) => console.log(m) };
   const navigate = useNavigate();
   // Inside component, add:
   const location = useLocation();
@@ -85,6 +87,7 @@ export default function OrdersPage() {
     }
   })();
 
+  
   const merchantPhone =
     merchantProfile?.phone ||
     merchantProfile?.mobile ||
@@ -109,6 +112,25 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
 const userId = 50;
 
+// const userId =
+//   localStorage.getItem("user_id");
+
+// STEP 12 — OPTIONAL VERY IMPORTANT
+
+// Right now:
+
+// const userId = 50;
+
+// This is dangerous.
+
+// REPLACE WITH:
+
+// const userId =
+//   localStorage.getItem("user_id");
+
+// Otherwise all merchants see same orders.
+
+
 /* REQUIRED TABS ONLY */
 const tabs = ["New", "Accepted", "Preparing", "Prepared"];
 
@@ -116,11 +138,31 @@ const [activeTab, setActiveTab] = useState(location.state?.tab || "New");
 const [query, setQuery] = useState("");
 const [paymentFilter, setPaymentFilter] = useState("");
 
+const [ordersLoading, setOrdersLoading] =
+  useState(false);
+
+const [tabLoading, setTabLoading] =
+  useState(false);
+
+const [detailsLoading, setDetailsLoading] =
+  useState(null);
+
+  useEffect(() => {
+  setDetailsLoading(null);
+}, [location.pathname]);
+
+
 useEffect(() => {
   let isMounted = true;
 
   const fetchOrders = async () => {
+
+    if (ordersLoading) return;
+
   try {
+
+    setOrdersLoading(true);
+
     // In OrdersPage.jsx — inside fetchOrders
 
 const statusMap = {
@@ -162,7 +204,16 @@ const statusToTab = {
     }
   } catch (error) {
     console.error("Orders fetch error", error);
+    toast.error(
+  "Failed to load orders"
+);
   }
+  finally {
+
+  setOrdersLoading(false);
+
+  setTabLoading(false);
+}
 };
 
   fetchOrders();
@@ -173,10 +224,10 @@ const statusToTab = {
 }, [activeTab, paymentFilter]);
 
 
-  const persist = (next) => {
-    setOrders(next);
-    localStorage.setItem("merchant_orders", JSON.stringify(next));
-  };
+  // const persist = (next) => {
+  //   setOrders(next);
+  //   localStorage.setItem("merchant_orders", JSON.stringify(next));
+  // };
 
   /* REQUIRED TABS ONLY */
   // const tabs = ["New", "Preparing", "Prepared"];
@@ -242,7 +293,7 @@ const statusToTab = {
 
 
   return (
-    <ToastProvider>
+    // <ToastProvider>
       <div className="min-h-screen bg-orange-50 flex flex-col">
         
         {/* HEADER */}
@@ -279,10 +330,32 @@ const statusToTab = {
                 {tabs.map((t) => (
                   <button
                     key={t}
-                    onClick={() => setActiveTab(t)}
-                    className={`px-3 py-2 rounded-xl ${
-                      activeTab === t ? "bg-orange-400 text-white" : "bg-white border"
-                    }`}
+                    disabled={tabLoading}
+                    onClick={() => {
+                    if (
+                      tabLoading ||
+                      activeTab === t
+                    ) return;
+
+                    setTabLoading(true);
+
+                    setActiveTab(t);
+                  }}
+                    className={`
+                    px-3 py-2 rounded-xl transition-all
+
+                    ${
+                      activeTab === t
+                        ? "bg-orange-400 text-white"
+                        : "bg-white border"
+                    }
+
+                    ${
+                      tabLoading
+                        ? "opacity-60 cursor-not-allowed"
+                        : ""
+                    }
+                  `}
                   >
                     {t}
                     {activeTab === t && (
@@ -299,17 +372,35 @@ const statusToTab = {
                 <div className="flex items-center border rounded-xl px-2">
                   <Search className="text-gray-500" />
                   <input
+                  disabled={ordersLoading}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search order, customer, phone"
-                    className="px-2 py-2 text-sm outline-none"
+                    className={`
+                    px-2 py-2 text-sm outline-none
+
+                    ${
+                      ordersLoading
+                        ? "cursor-not-allowed opacity-60"
+                        : ""
+                    }
+                  `}
                   />
                 </div>
 
                 <select
+                  disabled={ordersLoading}
                   value={paymentFilter}
                   onChange={(e) => setPaymentFilter(e.target.value)}
-                  className="border rounded-xl px-3 py-2 text-sm"
+                  className={`
+                    border rounded-xl px-3 py-2 text-sm
+
+                    ${
+                      ordersLoading
+                        ? "cursor-not-allowed opacity-60"
+                        : ""
+                    }
+                  `}
                 >
                   <option value="">All payments</option>
                   <option value="prepaid">Prepaid</option>
@@ -321,9 +412,23 @@ const statusToTab = {
 
           {/* ORDER LIST */}
           <div>
-            {filtered.length === 0 ? (
+            {ordersLoading ? (
+
+                <div className="bg-white p-6 text-center text-orange-500 rounded-2xl shadow font-semibold">
+                  Loading orders...
+                </div>
+
+              ) : filtered.length === 0 ? (
               <div className="bg-white p-6 text-center text-gray-500 rounded-2xl shadow">
-                No orders found
+                <div className="flex flex-col items-center gap-2">
+                    <div className="text-4xl">
+                      📦
+                    </div>
+
+                    <div>
+                      No orders found
+                    </div>
+                  </div>
               </div>
             ) : (
               filtered.map((o) => {
@@ -356,10 +461,36 @@ const statusToTab = {
                     </div>
 
                     <button
-                    onClick={() => navigate(`/order/${o.id}`)}
-                    className="px-3 py-1 border rounded-xl text-sm"
+                    disabled={
+                      detailsLoading === o.id
+                    }
+                    onClick={() => {
+
+                      if (
+                        detailsLoading === o.id
+                      ) return;
+
+                      setDetailsLoading(o.id);
+
+                      navigate(`/order/${o.id}`);
+
+                    }}
+                      className={`
+                      px-3 py-1 border rounded-xl text-sm
+                      transition-all
+
+                      ${
+                       detailsLoading === o.id
+                       ? "opacity-60 cursor-not-allowed pointer-events-none"
+                          : ""
+                      }
+                    `}
                   >
-                    Details
+                   {
+                    detailsLoading === o.id
+                      ? "Opening..."
+                      : "Details"
+                  }
                   </button>
                   </motion.div>
                 );
@@ -368,6 +499,6 @@ const statusToTab = {
           </div>
         </div>
       </div>
-    </ToastProvider>
+    // </ToastProvider>
   );
 }

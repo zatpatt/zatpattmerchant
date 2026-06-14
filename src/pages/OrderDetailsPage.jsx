@@ -3,6 +3,7 @@ import React, { useEffect, useState, useContext, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import toast from "react-hot-toast";
 import { NotificationContext } from "../context/NotificationContext";
 // Update import at top
 // Update import at top
@@ -22,21 +23,34 @@ import {
  - If status === "Prepared": NO further action (as requested)
 */
 
-function SlideConfirm({ label, onConfirm }) {
+function SlideConfirm({
+  label,
+  onConfirm,
+  disabled = false,
+}) {
   const ref = useRef(null);
   const [w, setW] = useState(0);
   useEffect(() => { if (ref.current) setW(ref.current.clientWidth); }, []);
   return (
     <div ref={ref} className="w-full bg-gray-100 rounded-full p-1 relative select-none">
       <motion.div
-        drag="x"
+        drag={!disabled ? "x" : false}        
         dragConstraints={{ left: 0, right: Math.max(0, w - 56) }}
         dragElastic={0.1}
         onDragEnd={(e, info) => {
           const threshold = Math.max(0, (w - 56) * 0.6);
           if (info.point.x >= threshold) onConfirm();
         }}
-        className="w-14 h-12 bg-white rounded-full shadow-md flex items-center justify-center cursor-grab"
+        className={`
+          w-14 h-12 bg-white rounded-full
+          shadow-md flex items-center
+          justify-center
+          ${
+            disabled
+              ? "opacity-50 cursor-not-allowed"
+              : "cursor-grab"
+          }
+        `}
       >
         ▶
       </motion.div>
@@ -84,11 +98,32 @@ export default function OrderDetailsPage() {
   const [order, setOrder] = useState(null);
   const [showStepper, setShowStepper] = useState(false);
   const [stepperInitial, setStepperInitial] = useState(15);
-  const [width, setWidth] = useState(0);
+  // const [width, setWidth] = useState(0);
+
+  // const userId =
+  // localStorage.getItem("user_id");
+
+  const [acceptLoading, setAcceptLoading] =
+  useState(false);
+
+  const [prepareLoading, setPrepareLoading] =
+    useState(false);
+
+  const [preparedLoading, setPreparedLoading] =
+    useState(false);
+
+  const [callLoading, setCallLoading] =
+    useState(false);
+
+  const [pageLoading, setPageLoading] =
+    useState(false);
 
   useEffect(() => {
   const fetchOrderDetail = async () => {
     try {
+
+      setPageLoading(true);
+
       const res = await getMerchantOrderDetail(id);
 
       if (res?.status) {
@@ -117,7 +152,13 @@ setOrder({
       }
     } catch (err) {
       console.error("Order detail fetch error", err);
+      toast.error(
+        "Failed to load order details"
+      );
     }
+    finally {
+  setPageLoading(false);
+}
   };
 
   fetchOrderDetail();
@@ -140,7 +181,7 @@ setOrder({
     setShowStepper(true);
   };
 
- const userId = 50;
+ const userId = 50;   //user_id
 
  const formatTime = (mins) => {
   const h = String(Math.floor(mins / 60)).padStart(2, "0");
@@ -149,7 +190,13 @@ setOrder({
 };
 
 const onStepperSave = async (mins) => {
+
+  if (acceptLoading) return;
+
   try {
+
+    setAcceptLoading(true);
+
     const payload = {
       order_id: order.id,
       timing: formatTime(mins),
@@ -172,6 +219,10 @@ const onStepperSave = async (mins) => {
 
       addNotification?.(`Order ${order.id} accepted (${mins} mins)`);
 
+      toast.success(
+        `Order accepted in ${mins} mins`
+      );
+
       // ← ADD THIS: go back so the Preparing tab shows the order
       setTimeout(() => navigate(-1), 1500);
     }
@@ -179,11 +230,23 @@ const onStepperSave = async (mins) => {
     setShowStepper(false);
   } catch (err) {
     console.error("Accept error", err);
+    toast.error(
+      "Failed to accept order"
+    );
   }
+  finally {
+  setAcceptLoading(false);
+}
 };
 
 const onCancelOrder = async () => {
+
+  if (acceptLoading) return;
+
   try {
+
+    setAcceptLoading(true);
+
     const payload = {
       order_id: order.id,
       timing: "00:00:00",
@@ -195,16 +258,31 @@ const onCancelOrder = async () => {
 
     if (res?.status) {
       addNotification?.(`Order ${order.id} cancelled`);
+      toast.success(
+        "Order cancelled successfully"
+      );
       navigate(-1);
     }
   } catch (err) {
     console.error("Cancel error", err);
+    toast.error(
+    "Failed to cancel order"
+  );
   }
+  finally {
+  setAcceptLoading(false);
+}
 };
 
 // Replace onMarkPreparing entirely
 const onMarkPreparing = async () => {
+
+  if (prepareLoading) return;
+
   try {
+
+    setPrepareLoading(true);
+
     const payload = {
       order_id: order.id,
       is_prepare: true,
@@ -224,16 +302,31 @@ const onMarkPreparing = async () => {
       }));
 
       addNotification?.(`Order ${order.id} is now Preparing`);
+      toast.success(
+        "Order marked as Preparing"
+      );
       setTimeout(() => navigate("/orders", { state: { tab: "Preparing" } }), 1500);
     }
   } catch (err) {
     console.error("Preparing error", err.response?.data || err);
+    toast.error(
+      "Failed to update preparing status"
+    );
   }
+  finally {
+  setPrepareLoading(false);
+}
 };
 
  // Replace onMarkPrepared entirely
 const onMarkPrepared = async () => {
+
+  if (preparedLoading) return;
+
   try {
+
+    setPreparedLoading(true);
+
     const payload = {
       order_id: Number(order.id),
       is_prepared: true,
@@ -254,14 +347,31 @@ const onMarkPrepared = async () => {
       }));
 
       addNotification?.(`Order ${order.id} marked Prepared`);
+      toast.success(
+          "Order marked as Prepared"
+        );
       setTimeout(() => navigate("/orders", { state: { tab: "Prepared" } }), 1500);
     }
   } catch (err) {
     console.error("Prepare error", err.response?.data || err);
+    toast.error(
+      "Failed to mark order prepared"
+    );
   }
+  finally {
+  setPreparedLoading(false);
+}
 };
 
-  if (!order) {
+  if (pageLoading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center text-orange-500 font-semibold">
+      Loading Order...
+    </div>
+    );
+  }
+
+    if (!order) {
     return (
       <div className="p-6 text-center text-gray-600">
         Order not found — go back.
@@ -270,9 +380,15 @@ const onMarkPrepared = async () => {
   }
 
   const handleCall = async () => {
+
+    if (callLoading) return;
+
   try {
+
+    setCallLoading(true);
+
     if (!order?.callAction) {
-      alert("Call not available");
+      toast.error("Call not available");
       return;
     }
 
@@ -288,7 +404,13 @@ const onMarkPrepared = async () => {
     console.log("Call initiated", data);
   } catch (err) {
     console.error("Call error", err);
+    toast.error(
+    "Failed to initiate call"
+  );
   }
+  finally {
+  setCallLoading(false);
+}
 };
 
 
@@ -337,7 +459,15 @@ const onMarkPrepared = async () => {
   <>
     <div className="text-sm text-gray-600">Slide to Accept Order</div>
     <div ref={(el) => el && setWidth(el.clientWidth)}>
-      <SlideConfirm label="Slide to Accept" onConfirm={onAcceptSlide} />
+     <SlideConfirm
+        label={
+          acceptLoading
+            ? "Accepting..."
+            : "Slide to Accept"
+        }
+        onConfirm={onAcceptSlide}
+        disabled={acceptLoading}
+      />
     </div>
   </>
 )}
@@ -347,7 +477,14 @@ const onMarkPrepared = async () => {
     <>
       <div className="text-sm text-gray-600">Order Accepted — Slide to start Preparing</div>
       <div>
-        <SlideConfirm label="Slide to Prepare" onConfirm={onMarkPreparing} />
+        <SlideConfirm
+        label={
+          prepareLoading
+            ? "Preparing..."
+            : "Slide to Prepare"
+        }
+        disabled={prepareLoading}
+        onConfirm={onMarkPreparing} />
       </div>
     </>
   )}
@@ -357,7 +494,14 @@ const onMarkPrepared = async () => {
     <>
       <div className="text-sm text-gray-600">Preparing — ETA: {order.etaMins || "--"} mins</div>
       <div>
-        <SlideConfirm label="Slide to mark Prepared" onConfirm={onMarkPrepared} />
+        <SlideConfirm
+          label={
+            preparedLoading
+              ? "Updating..."
+              : "Slide to mark Prepared"
+          }
+          disabled={preparedLoading}
+          onConfirm={onMarkPrepared} />
       </div>
     </>
   )}
@@ -370,10 +514,31 @@ const onMarkPrepared = async () => {
     </div>
   )}
 
-  <button onClick={handleCall} className="w-full border py-3 rounded-xl flex justify-center gap-2">
-    <Phone /> Call
+  <button
+  onClick={handleCall}
+  disabled={callLoading}
+   className={`
+  w-full border py-3 rounded-xl
+  flex justify-center gap-2
+
+  ${
+    callLoading
+      ? "opacity-50 cursor-not-allowed pointer-events-none"
+      : ""
+  }
+`}>
+    <Phone /> {
+  callLoading
+    ? "Calling..."
+    : "Call"
+  }
   </button>
-  <button onClick={() => alert("Chat coming soon")} className="w-full border py-3 rounded-xl flex justify-center gap-2">
+  <button
+  onClick={() =>
+    toast(
+      "Chat feature coming soon"
+    )
+  } className="w-full border py-3 rounded-xl flex justify-center gap-2">
     <MessageCircle /> Chat
   </button>
 

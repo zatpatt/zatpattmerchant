@@ -8,6 +8,9 @@ export default function CustomerInsightsPage() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
+  const [filterLoading, setFilterLoading] =
+  useState(false);
+
   // Dummy data
   const customerTypeData = [
     { name: "New", value: 120 },
@@ -49,15 +52,79 @@ export default function CustomerInsightsPage() {
         <input
           type="date"
           value={dateRange.start}
-          onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-          className="border rounded-xl p-2 text-sm"
+          onChange={async (e) => {
+            disabled={filterLoading}
+            if (filterLoading) return;
+
+            try {
+
+              setFilterLoading(true);
+
+              setDateRange({
+                ...dateRange,
+                start: e.target.value,
+              });
+
+            } finally {
+
+              setTimeout(() => {
+                setFilterLoading(false);
+              }, 400);
+            }
+          }}
+          className={`
+          border rounded-xl p-2 text-sm
+          transition-all
+
+          ${
+            filterLoading
+              ? "bg-gray-100 cursor-not-allowed opacity-70"
+              : "bg-white"
+          }
+        `}
         />
         <span>to</span>
+        
+        {
+        filterLoading && (
+          <span className="text-xs text-orange-500">
+            Loading...
+          </span>
+        )
+      }
         <input
           type="date"
           value={dateRange.end}
-          onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-          className="border rounded-xl p-2 text-sm"
+          onChange={async (e) => {
+            disabled={filterLoading}
+            if (filterLoading) return;
+
+            try {
+
+              setFilterLoading(true);
+
+              setDateRange({
+                ...dateRange,
+                end: e.target.value,
+              });
+
+            } finally {
+
+              setTimeout(() => {
+                setFilterLoading(false);
+              }, 400);
+            }
+          }}
+         className={`
+          border rounded-xl p-2 text-sm
+          transition-all
+
+          ${
+            filterLoading
+              ? "bg-gray-100 cursor-not-allowed opacity-70"
+              : "bg-white"
+          }
+        `}
         />
       </div>
 

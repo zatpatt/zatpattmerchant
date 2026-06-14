@@ -22,13 +22,18 @@ import {
 } from "../services/ratingsApi";
 import { getMerchantReviewInsights } from "../services/ratingsApi";
 import { getMerchantChats } from "../services/ratingsApi";
-
+import toast from "react-hot-toast";
 
 // LocalStorage key for reviews (you chose option A)
 
 
 export default function RatingsPage() {
   const navigate = useNavigate();
+
+  const USER_ID = 88;
+
+  // const USER_ID =
+  // localStorage.getItem("user_id");
 
   // UI state
   const [activeTab, setActiveTab] = useState(() => {
@@ -42,6 +47,22 @@ export default function RatingsPage() {
   const [insights, setInsights] = useState([]);
   const [insightFilter, setInsightFilter] = useState("month");
   const [chats, setChats] = useState([]);
+
+  const [ratingsLoading, setRatingsLoading] =
+  useState(false);
+
+  const [reviewsLoading, setReviewsLoading] =
+    useState(false);
+
+  const [insightsLoading, setInsightsLoading] =
+    useState(false);
+
+  const [chatsLoading, setChatsLoading] =
+    useState(false);
+
+  // const [replyLoading, setReplyLoading] =
+  //   useState({});
+
   const [pinnedMetrics, setPinnedMetrics] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("merchant_pinned_metrics") || "[]");
@@ -49,72 +70,174 @@ export default function RatingsPage() {
   });
 
   const fetchChats = async () => {
-  try {
-    const res = await getMerchantChats({ user: 50 });
 
-    console.log("Chats API:", res);
+  if (chatsLoading) return;
+
+  try {
+
+    setChatsLoading(true);
+
+    const res =
+      await getMerchantChats({
+        user: USER_ID,
+      });
+
+    console.log(
+      "Chats API:",
+      res
+    );
 
     if (res?.status) {
       setChats(res.data || []);
     }
+
   } catch (err) {
-    console.error("Chats error:", err);
+
+    console.error(
+      "Chats error:",
+      err
+    );
+toast.error(
+  "Failed to load chats"
+);
+  } finally {
+
+    setChatsLoading(false);
+
   }
 };
 
 
-  const fetchInsights = async () => {
-  try {
-    const res = await getMerchantReviewInsights({
-      user: 50,
-      filter: insightFilter,
-    });
+ const fetchInsights = async () => {
 
-    console.log("Insights API:", res);
+  if (insightsLoading) return;
+
+  try {
+
+    setInsightsLoading(true);
+
+    const res =
+      await getMerchantReviewInsights({
+        user: USER_ID,
+        filter: insightFilter,
+      });
+
+    console.log(
+      "Insights API:",
+      res
+    );
 
     if (res?.status) {
       setInsights(res.data || []);
     }
+
   } catch (err) {
-    console.error("Insights error:", err);
+
+    console.error(
+      "Insights error:",
+      err
+    );
+toast.error(
+  "Failed to load insights"
+);
+  } finally {
+
+    setInsightsLoading(false);
+
   }
 };
 
-  const fetchRatings = async () => {
-  try {
-    const res = await getMerchantRating({ user: 51 });
+ const fetchRatings = async () => {
 
-    console.log("Rating API:", res);
+  if (ratingsLoading) return;
+
+  try {
+
+    setRatingsLoading(true);
+
+    const res =
+      await getMerchantRating({
+        user: USER_ID,
+      });
+
+    console.log(
+      "Rating API:",
+      res
+    );
 
     if (res?.status) {
-      setRatingSummary(res.data || {});
+      setRatingSummary(
+        res.data || {}
+      );
     }
+
   } catch (err) {
-    console.error("Rating error:", err);
+
+    console.error(
+      "Rating error:",
+      err
+    );
+toast.error(
+  "Failed to load ratings"
+);
+  } finally {
+
+    setRatingsLoading(false);
+
   }
 };
 
 const fetchReviews = async () => {
-  try {
-    const res = await getMerchantReviews({ user: 51 });
 
-    console.log("Reviews API:", res);
+  if (reviewsLoading) return;
+
+  try {
+
+    setReviewsLoading(true);
+
+    const res =
+      await getMerchantReviews({
+        user: USER_ID,
+      });
+
+    console.log(
+      "Reviews API:",
+      res
+    );
 
     if (res?.status) {
+
       setReviews(
-  (res.data || []).map((item) => ({
-    id: item.id,
-    rating: item.ratings,
-    text: item.remark,
-    items: item.items?.join(", "),
-    name: "Customer", // fallback (backend not giving)
-    date: new Date().toISOString(), // fallback
-    status: "",
-  }))
-);
+        (res.data || []).map(
+          (item) => ({
+            id: item.id,
+            rating: item.ratings,
+            text: item.remark,
+            items:
+              item.items?.join(", "),
+            name: "Customer",
+            date:
+              item.created_at ||
+              new Date().toISOString(),
+            status: "",
+          })
+        )
+      );
     }
+
   } catch (err) {
-    console.error("Reviews error:", err);
+
+    console.error(
+      "Reviews error:",
+      err
+    );
+toast.error(
+  "Failed to load reviews"
+);
+  } finally {
+
+    setReviewsLoading(false);
+
   }
 };
 
@@ -125,26 +248,42 @@ const fetchReviews = async () => {
 // }, []);
 
 useEffect(() => {
-  if (activeTab === "overview") {
+
+  if (
+    activeTab === "overview" &&
+    !ratingSummary?.average_rating
+  ) {
     fetchRatings();
   }
 
-  if (activeTab === "all") {
+  if (
+    activeTab === "all" &&
+    reviews.length === 0
+  ) {
     fetchReviews();
   }
 
-  if (activeTab === "insights") {
+  if (
+    activeTab === "insights"
+  ) {
     fetchInsights();
   }
 
- if (activeTab === "replies") {
-  fetchChats();
-}
-}, [activeTab]);
+  if (
+    activeTab === "replies" &&
+    chats.length === 0
+  ) {
+    fetchChats();
+  }
 
-useEffect(() => {
-  fetchInsights();
-}, [insightFilter]);
+}, [
+  activeTab,
+  insightFilter,
+]);
+
+// useEffect(() => {
+//   fetchInsights();
+// }, [insightFilter]);
 
   // live storage listener so updates from other tabs/apps reflect here
 
@@ -199,11 +338,12 @@ const ratingTrend = useMemo(() => {
   const handleReplySend = (id) => {
     const txt = (replyText[id] || "").trim();
     if (!txt) {
-      alert("Reply is empty");
+      toast.error("Reply is empty");
       return;
     }
     setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, replied: true, merchantReply: txt } : r)));
     setReplyText((p) => ({ ...p, [id]: "" }));
+    toast.success("Reply sent successfully");
   };
 
   const togglePin = (metric) => {
@@ -212,34 +352,45 @@ const ratingTrend = useMemo(() => {
     try { localStorage.setItem("merchant_pinned_metrics", JSON.stringify(next)); } catch {}
   };
 
-  const markResolved = (id) => {
-    setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, replied: true, resolved: true } : r)));
-  };
+  // const markResolved = (id) => {
+  //   setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, replied: true, resolved: true } : r)));
+  // };
 
   const reportReview = (id) => {
-    if (!confirm("Report this review as inappropriate?")) return;
+   toast.success(
+      "Review reported successfully"
+    );
     setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, reported: true } : r)));
-    alert("Reported — admin will review.");
   };
 
   const exportReviewsCSV = () => {
-    if (!reviews.length) return alert("No reviews to export");
+   if (!reviews.length) {
+
+  toast.error(
+    "No reviews to export"
+  );
+
+  return;
+}
     const keys = ["id", "name", "rating", "text", "items", "date", "status", "replied", "merchantReply"];
     const rows = [keys.join(",")].concat(reviews.map((r) => keys.map((k) => `"${String((r[k] === undefined || r[k] === null) ? "" : r[k]).replace(/"/g, '""')}"`).join(",")));
     const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `reviews-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+    toast.success(
+      "Reviews exported successfully"
+    );
   };
 
   // small helper to seed demo reviews when none exist (optional)
-  const seedDemo = () => {
-    const demo = [
-      { id: 1, name: "Rahul Sharma", image: "https://i.pravatar.cc/40?img=1", rating: 5, text: "Great packaging and fast delivery!", items: "Amul Butter 100g, Bread Pack", date: new Date().toISOString(), replied: false, verified: true, status: "Delivered" },
-      { id: 2, name: "Priya Patel", image: "https://i.pravatar.cc/40?img=2", rating: 3, text: "Product was fine but delivery was delayed.", items: "Tata Salt 1kg", date: new Date(Date.now()-86400000).toISOString(), replied: true, verified: true, merchantReply: "Sorry for the delay, we'll improve.", status: "Delivered" },
-    ];
-    setReviews(demo);
-  };
+  // const seedDemo = () => {
+  //   const demo = [
+  //     { id: 1, name: "Rahul Sharma", image: "https://i.pravatar.cc/40?img=1", rating: 5, text: "Great packaging and fast delivery!", items: "Amul Butter 100g, Bread Pack", date: new Date().toISOString(), replied: false, verified: true, status: "Delivered" },
+  //     { id: 2, name: "Priya Patel", image: "https://i.pravatar.cc/40?img=2", rating: 3, text: "Product was fine but delivery was delayed.", items: "Tata Salt 1kg", date: new Date(Date.now()-86400000).toISOString(), replied: true, verified: true, merchantReply: "Sorry for the delay, we'll improve.", status: "Delivered" },
+  //   ];
+  //   setReviews(demo);
+  // };
 
   const filterLabelMap = {
   week: "This Week",
@@ -262,8 +413,31 @@ const ratingTrend = useMemo(() => {
       <div className="flex justify-around bg-white border-b sticky top-0 z-10">
         {["overview", "all", "insights", "replies"].map((tab) => (
           <button
+          disabled={
+            ratingsLoading ||
+            reviewsLoading ||
+            insightsLoading ||
+            chatsLoading
+          }
             key={tab}
-            className={`py-3 px-4 text-sm font-medium ${activeTab === tab ? "border-b-2 border-orange-500 text-orange-600" : "text-gray-500"}`}
+            className={`
+              py-3 px-4 text-sm font-medium
+
+              ${
+                ratingsLoading ||
+                reviewsLoading ||
+                insightsLoading ||
+                chatsLoading
+                  ? "pointer-events-none opacity-60"
+                  : ""
+              }
+
+              ${
+                activeTab === tab
+                  ? "border-b-2 border-orange-500 text-orange-600"
+                  : "text-gray-500"
+              }
+            `}   
             onClick={() => {
             setActiveTab(tab);
             localStorage.setItem("ratings_active_tab", tab);
@@ -276,6 +450,14 @@ const ratingTrend = useMemo(() => {
           </button>
         ))}
       </div>
+
+{
+  ratingsLoading && (
+    <div className="text-center py-10 text-orange-500">
+      Loading ratings...
+    </div>
+  )
+}
 
       {/* CONTENT */}
       {activeTab === "overview" && (
@@ -322,12 +504,21 @@ const ratingTrend = useMemo(() => {
           )}
 
           <div className="flex gap-2">
-            <button onClick={exportReviewsCSV} className="px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"><Download size={16} /> Export CSV</button>
+            <button onClick={exportReviewsCSV} className="px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"><Download size={16} /> Export CSV
+            </button>            
             <button onClick={() => setReviews([])} className="px-3 py-2 bg-red-100 text-red-600 rounded-xl">Clear Reviews</button>
-            <button onClick={seedDemo} className="px-3 py-2 bg-gray-100 rounded-xl">Seed Demo</button>
+            {/* <button onClick={seedDemo} className="px-3 py-2 bg-gray-100 rounded-xl">Seed Demo</button> */}
           </div>
         </div>
       )}
+
+      {
+  reviewsLoading && (
+    <div className="text-center py-10 text-orange-500">
+      Loading reviews...
+    </div>
+  )
+}
 
       {activeTab === "all" && (
         <div className="p-5 space-y-4">
@@ -382,7 +573,7 @@ const ratingTrend = useMemo(() => {
                     <div className="mt-3">
                       <textarea value={replyText[r.id]} onChange={(e)=>setReplyText((p)=>({ ...p, [r.id]: e.target.value }))} className="w-full border rounded-xl p-2 text-sm" placeholder="Write your reply..." />
                       <div className="flex gap-2 mt-2">
-                        <button onClick={() => handleReplySend(r.id)} className="bg-orange-500 text-white px-3 py-1 rounded-lg text-sm">Send Reply</button>
+                        <button onClick={() => handleReplySend(r.id)} className="bg-orange-500 text-white px-3 py-1 rounded-lg text-sm">Send Reply </button>
                         <button onClick={() => setReplyText((p)=>({ ...p, [r.id]: undefined }))} className="px-3 py-1 border rounded-lg text-sm">Cancel</button>
                       </div>
                     </div>
@@ -395,6 +586,14 @@ const ratingTrend = useMemo(() => {
           {filteredReviews.length === 0 && <div className="text-gray-500 p-6 text-center">No reviews found</div>}
         </div>
       )}
+
+{
+  insightsLoading && (
+    <div className="text-center py-10 text-orange-500">
+      Loading insights...
+    </div>
+  )
+}
 
       {activeTab === "insights" && (
         <div className="p-5 space-y-6">
@@ -450,6 +649,14 @@ const ratingTrend = useMemo(() => {
         </div>
       )}
 
+      {
+  chatsLoading && (
+    <div className="text-center py-10 text-orange-500">
+      Loading chats...
+    </div>
+  )
+}
+
       {activeTab === "replies" && (
         <div className="p-5 space-y-4">
           <div className="bg-white p-5 rounded-2xl shadow">
@@ -494,8 +701,12 @@ const ratingTrend = useMemo(() => {
           <div className="bg-white p-5 rounded-2xl shadow space-y-2">
             <h3 className="font-semibold">📤 Export & Reports</h3>
             <button onClick={exportReviewsCSV} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-sm w-full justify-center"><Download size={16} /> Export Reviews (CSV)</button>
-            <button onClick={()=>alert('Generate Monthly Report (demo)')} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-sm w-full justify-center"><BarChart3 size={16} /> Generate Monthly Report</button>
-            <button onClick={()=>alert('Export Insights (demo)')} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-sm w-full justify-center"><Download size={16} /> Export Insights</button>
+            <button onClick={()=>toast(
+              "Monthly report feature coming soon"
+            )} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-sm w-full justify-center"><BarChart3 size={16} /> Generate Monthly Report</button>
+            <button onClick={()=>toast(
+              "Export insights feature coming soon"
+            )} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-sm w-full justify-center"><Download size={16} /> Export Insights</button>
           </div>
         </div>
       )}
