@@ -19,7 +19,8 @@ import { useNavigate } from "react-router-dom";
 import { LanguageContext } from "../context/LanguageContext";
 import Confetti from "react-confetti";
 import toast from "react-hot-toast";
-
+import ProfileIncompleteModal from "../components/ProfileIncompleteModal";
+import { isProfileComplete } from "../utils/profileGuard";
 import {
   getDashboardData,
   updateMerchantOnlineStatus,
@@ -46,8 +47,9 @@ export default function DashboardPage() {
   const [liveOrders, setLiveOrders] = useState([]);
 
   const [showConfetti, setShowConfetti] = useState(false);
-
-  // =========================
+  const [showProfileModal, setShowProfileModal] = useState(false);
+ 
+   // =========================
   // STORE NAME
   // =========================
 
@@ -359,7 +361,12 @@ finally {
   // TOGGLE ONLINE
   // =========================
 
- const toggleOnline = async () => {
+const toggleOnline = async () => {
+
+  if (!isProfileComplete()) {
+    setShowProfileModal(true);
+    return;
+  }
 
   // PREVENT MULTIPLE CLICKS
   if (statusLoading) return;
@@ -502,6 +509,42 @@ finally {
     "Canceled",
   ];
 
+// const handleProtectedNavigation =
+// (path) => {
+
+//   const completion =
+//     Number(
+//       localStorage.getItem(
+//         "profile_completion"
+//       ) || 0
+//     );
+
+//   if (completion < 100) {
+
+//     toast.error(
+//       "Complete your profile first"
+//     );
+
+//     navigate("/profile");
+
+//     return;
+//   }
+
+//   navigate(path);
+// };
+
+const handleProtectedNavigation =
+(path) => {
+
+  if (!isProfileComplete()) {
+    setShowProfileModal(true);
+    return;
+  }
+
+  navigate(path);
+};
+
+
   // =========================
   // LOADING
   // =========================
@@ -520,15 +563,21 @@ finally {
 );
   }
 
+
   // =========================
   // UI
   // =========================
 
-  return (
-    <div className="min-h-screen bg-orange-50 flex flex-col relative pb-28">
-      {showConfetti && <Confetti />}
+ return (
+    <div className="min-h-screen bg-orange-50 flex flex-col relative pb-28">
+      {showConfetti && <Confetti />}
 
-      {/* HEADER */}
+      <ProfileIncompleteModal
+        open={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+      />
+
+      {/* HEADER */}
 
       <div className="bg-gradient-to-r from-orange-500 to-amber-400 text-white py-5 px-6 rounded-b-3xl shadow-md flex justify-between items-center">
         <div>
@@ -861,7 +910,11 @@ finally {
       <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg flex justify-around py-3 rounded-t-3xl border-t">
 
         <button
-          onClick={() => navigate("/orders")}
+          onClick={() =>
+              handleProtectedNavigation(
+                "/orders"
+              )
+            }
           className="flex flex-col items-center text-orange-500"
         >
           <ShoppingBag size={22} />
@@ -871,7 +924,7 @@ finally {
         </button>
 
         <button
-          onClick={() => navigate("/earnings")}
+          onClick={() => handleProtectedNavigation("/earnings")}
           className="flex flex-col items-center text-orange-500"
         >
           <Wallet size={22} />
@@ -881,7 +934,7 @@ finally {
         </button>
 
         <button
-          onClick={() => navigate("/menu")}
+          onClick={() => handleProtectedNavigation("/menu")}
           className="flex flex-col items-center text-orange-500"
         >
           <BookOpen size={22} />
@@ -891,7 +944,7 @@ finally {
         </button>
 
         <button
-          onClick={() => navigate("/ratings")}
+          onClick={() => handleProtectedNavigation("/ratings")}
           className="flex flex-col items-center text-orange-500"
         >
           <ThumbsUp size={22} />

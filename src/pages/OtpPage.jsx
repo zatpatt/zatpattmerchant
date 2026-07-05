@@ -135,6 +135,15 @@ export default function OtpPage() {
       user: data.user || null,
     });
 
+    localStorage.setItem(
+        "profile_completion",
+        data.profile_completion || 0
+      );
+
+      localStorage.setItem(
+        "user_id",
+        data.user.id
+      );
       toast.success(
         "OTP verified successfully"
       );

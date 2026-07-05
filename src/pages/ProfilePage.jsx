@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 import {
   getMerchantProfile,
   addMerchantDetails,
-  editWorkingHours
+  editWorkingHours,
+  requestProfileEdit
 } from "../services/profileApi";
 import toast from "react-hot-toast";
 
@@ -38,8 +39,70 @@ function maskAccount(acc = "") {
   return acc.length > 4 ? `**** **** **** ${last4}` : acc;
 }
 
+const getImageUrl = (value) => {
+  if (!value) return "";
+
+  if (value instanceof File) {
+    return URL.createObjectURL(value);
+  }
+
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  if (value.startsWith("http")) {
+    return value;
+  }
+
+  return `${import.meta.env.VITE_API_URL}${value}`;
+};
+
 export default function ProfilePage() {
   const navigate = useNavigate();
+
+  const [requestLoading, setRequestLoading] =
+  useState(false);
+
+  const handleRequestProfileEdit = async () => {
+
+  if (requestLoading) return;
+
+  try {
+
+    setRequestLoading(true);
+
+    const res =
+      await requestProfileEdit();
+
+    if (res?.status) {
+
+      toast.success(
+        "Profile update request sent successfully"
+      );
+
+    } else {
+
+      toast.error(
+        res?.message ||
+        "Failed to send request"
+      );
+
+    }
+
+  } catch (error) {
+
+    console.log(error);
+
+    toast.error(
+      "Unable to send request"
+    );
+
+  } finally {
+
+    setRequestLoading(false);
+
+  }
+};
 
 // const USER_ID =
 //   localStorage.getItem("user_id");
@@ -83,7 +146,13 @@ export default function ProfilePage() {
           completed: 0,
           cancellations: 0,
         },
-        payout: profileFrom.payout || { bankName: "", account: "", upi: "", verified: false },
+        payout: profileFrom.payout || {
+          bankName: "",
+          account: "",
+          ifsc: "",
+          upi: "",
+          verified: false,
+        },
         documents: profileFrom.documents || {},
       };
     } catch (e) {
@@ -119,84 +188,188 @@ const fetchProfileFromAPI = async () => {
   if (loading) return;
 
   try {
+
     setLoading(true);
 
-    const res = await getMerchantProfile({
-      user: USER_ID,
-    });
+    const res =
+      await getMerchantProfile({
+        user: USER_ID,
+      });
 
-    if (res?.status && res?.data) {
-      const data = res.data;
+    if (
+      res?.status &&
+      res?.data
+    ) {
+
+      const data =
+        res.data;
+
+      // ✅ SAVE REAL COMPLETION %
+      localStorage.setItem(
+        "profile_completion",
+        String(
+          data.profile_completion || 0
+        )
+      );
+
+      console.log("API DATA", data);
+      console.log("GST", data.gst_certificate);
+      console.log("PAN", data.pan_card);
+      console.log("FSSAI", data.fssai_certificate);
+      console.log("AADHAAR", data.aadhaar_card);
+      console.log("LOGO", data.logo);
 
       setProfile((prev) => ({
         ...prev,
 
-        storeName: data.full_name || "",
-        address: data.address || "",
-        city: data.city || "",
-        state: data.state || "",
-        pincode: data.pincode || "",
+        storeName:
+          data.first_name || "",
 
-        contact: data.mobile || "",
-        email: data.email || "",
+        address:
+          data.address || "",
 
-        ownerName: data.owner_name || "",
+        city:
+          data.city || "",
 
-        first_name: data.first_name || "",
-        last_name: data.last_name || "",
-        gender: data.gender || "",
-        dob: data.dob || "",
-        // merchant_type: data.merchant_type || "",
+        state:
+          data.state || "",
 
-        commission_type: data.commission_type || "",
-        food: data.food || "",
-        longitude: data.longitude || "",
-        latitude: data.latitude || "",
+        pincode:
+          data.pincode || "",
 
-        aadhaar_number: data.aadhaar_number || "",
+        contact:
+          data.mobile || "",
 
-        profile_photo: data.profile_photo || "",
+        email:
+          data.email || "",
 
-        deliveryRadius: data.servicable_radius_km || 3,
-        etaMins: data.estimated_delivery_time || 30,
-        minOrder: data.minimum_order_amount || 50,
+        ownerName: 
+          data.owner_name || "",
+
+        merchant_discreption:
+          data.merchant_discreption || "",
+
+        // ownerName:
+        //   data.owner_name || "",
+
+        // first_name:
+        //   data.first_name || "",
+
+        // last_name:
+        //   data.last_name || "",
+
+        gender:
+          data.gender || "",
+
+        dob:
+          data.dob || "",
+
+        commission_value:
+          data.commission_value || "",
+
+        food:
+          data.food || "",
+
+        longitude:
+          data.longitude || "",
+
+        latitude:
+          data.latitude || "",
+
+        aadhaar_number:
+          data.aadhaar_number || "",
+
+        // profile_photo:
+        //   data.profile_photo || "",
+
+        deliveryRadius:
+          data.servicable_radius_km || "",
+
+        // etaMins:
+        //   data.estimated_delivery_time || 30,
+
+        minOrder:
+          data.minimum_order_amount || 50,
 
         payout: {
-          bankName: data.bank_name || "",
-          account: data.account_number || "",
-          upi: data.upi_id || "",
+          bankName:
+            data.bank_name || "",
+
+          account:
+            data.account_number || "",
+
+          ifsc: 
+          data.ifsc_code || "",
+
+          upi:
+            data.upi_id || "",
+
           verified: true,
         },
-        gst: data.gst_number || "",
-        fssai: data.fssai_number || "",
-        pan: data.pan_number || "",
 
-        logo: data.logo || "",
+        gst:
+          data.gst_number || "",
+
+        fssai:
+          data.fssai_number || "",
+
+        pan:
+          data.pan_number || "",
+
+        logo:
+          data.logo || "",
 
         performance: {
           ...prev.performance,
-          rating: data.avg_rating || 0,
-          completed: data.completed_orders || 0,
-          cancellations: data.cancelled_orders || 0,
+
+          rating:
+            data.avg_rating || 0,
+
+          completed:
+            data.completed_orders || 0,
+
+          cancellations:
+            data.cancelled_orders || 0,
         },
 
-       documents: {
-        gst: data.gst_certificate || "",
-        fssai: data.fssai_certificate || "",
-        pan: data.pan_card || "",
-        license: data.business_certificate || "",
-        aadhaar: data.aadhaar_card || "",
-      },
+          kycStatus: data.kyc_status
+    ? "Verified"
+    : "Pending",
+
+        documents: {
+          gst:
+            data.gst_certificate || "",
+
+          fssai:
+            data.fssai_certificate || "",
+
+          pan:
+            data.pan_card || "",
+
+          // license:
+          //   data.business_certificate || "",
+
+          aadhaar:
+            data.aadhaar_card || "",
+        },
       }));
     }
+
   } catch (error) {
+
     console.log(error);
+
   } finally {
+
     setLoading(false);
+
   }
 };
 
-const USER_ID = 88;
+const USER_ID =
+  localStorage.getItem(
+    "user_id"
+  );
 
 // 1. REMOVE HARDCODED USER_ID
 
@@ -344,16 +517,16 @@ useEffect(() => {
       }
 
       // auto-verify demo KYC if all docs present
-      setTimeout(() => {
-        const docs = {
-          license: profile.documents?.license || (docKey === "license" && reader.result),
-          gst: profile.documents?.gst || (docKey === "gst" && reader.result),
-          idProof: profile.documents?.idProof || (docKey === "idProof" && reader.result),
-        };
-        if (docs.license && docs.gst && docs.idProof) {
-          update("kycStatus", "Verified");
-        }
-      }, 200);
+      // setTimeout(() => {
+      //   const docs = {
+      //     license: profile.documents?.license || (docKey === "license" && reader.result),
+      //     gst: profile.documents?.gst || (docKey === "gst" && reader.result),
+      //     idProof: profile.documents?.idProof || (docKey === "idProof" && reader.result),
+      //   };
+      //   if (docs.license && docs.gst && docs.idProof) {
+      //     update("kycStatus", "Verified");
+      //   }
+      // }, 200);
     };
     reader.readAsDataURL(file);
   };
@@ -405,30 +578,30 @@ useEffect(() => {
     return false;
   }
 
-  if (!profile.first_name) {
-    toast.error("First Name required");
-    return false;
-  }
+  // if (!profile.first_name) {
+  //   toast.error("First Name required");
+  //   return false;
+  // }
 
-  if (!profile.last_name) {
-    toast.error("Last Name required");
-    return false;
-  }
+  // if (!profile.last_name) {
+  //   toast.error("Last Name required");
+  //   return false;
+  // }
 
-  if (!profile.gender) {
-    toast.error("Gender required");
-    return false;
-  }
+  // if (!profile.gender) {
+  //   toast.error("Gender required");
+  //   return false;
+  // }
 
-  if (!profile.dob) {
-    toast.error("DOB required");
-    return false;
-  }
+  // if (!profile.dob) {
+  //   toast.error("DOB required");
+  //   return false;
+  // }
 
-  if (!profile.profile_photo) {
-    toast.error("Profile Photo required");
-    return false;
-  }
+  // if (!profile.profile_photo) {
+  //   toast.error("Profile Photo required");
+  //   return false;
+  // }
 
   if (!profile.payout.bankName) {
     toast.error("Bank Name required");
@@ -445,10 +618,15 @@ useEffect(() => {
     return false;
   }
 
-  if (!profile.documents.license) {
-    toast.error("Business Certificate required");
-    return false;
+  if (!profile.payout.ifsc) {
+  toast.error("IFSC Code required");
+  return false;
   }
+
+  // if (!profile.documents.license) {
+  //   toast.error("Business Certificate required");
+  //   return false;
+  // }
 
   if (!profile.documents.aadhaar) {
     toast.error("Aadhaar Card required");
@@ -478,72 +656,142 @@ const handleSave = async () => {
   if (saving) return;
 
   try {
+
     if (!validateForm()) return;
 
     setSaving(true);
 
- const payload = {
-  user: USER_ID,
+    const payload = {
+      user: USER_ID,
 
-  address: profile.address,
-  city: profile.city,
-  state: profile.state,
-  pincode: profile.pincode,
-  // merchant_type: profile.merchant_type,
+      address: profile.address,
+      city: profile.city,
+      state: profile.state,
+      pincode: profile.pincode,
 
-  owner_name: `${profile.first_name} ${profile.last_name}`,
-  first_name: profile.first_name,
-  last_name: profile.last_name,
-  email: profile.email,
-  gender: profile.gender,
-  dob: profile.dob,
+      merchant_discreption:
+        profile.merchant_discreption,
 
-  gst_number: profile.gst,
-  fssai_number: profile.fssai,
-  pan_number: profile.pan,
-  aadhaar_number: profile.aadhaar_number,
+      // owner_name:
+      //   `${profile.first_name} ${profile.last_name}`,
 
-  commission_type: profile.commission_type,
-  food: profile.food,
-  longitude: profile.longitude,
-  latitude: profile.latitude,
-  servicable_radius_km: profile.deliveryRadius,
+      owner_name:
+        profile.ownerName,
 
-  bank_name: profile.payout.bankName,
-  account_number: profile.payout.account,
-  upi_id: profile.payout.upi,
+        first_name:
+        profile.storeName,
 
-  estimated_delivery_time: profile.etaMins,
-  minimum_order_amount: profile.minOrder,
+      email:
+        profile.email,
 
-  profile_photo: profile.profile_photo,
-  logo: profile.logo,
+      // gender:
+      //   profile.gender,
 
-  gst_certificate: profile.documents.gst,
-  fssai_certificate: profile.documents.fssai,
-  pan_card: profile.documents.pan,
-  business_certificate: profile.documents.license,
-  aadhaar_card: profile.documents.aadhaar,
-};
+      // dob:
+      //   profile.dob,
 
-    const res = await addMerchantDetails(payload);
+      gst_number:
+        profile.gst,
+
+      fssai_number:
+        profile.fssai,
+
+      pan_number:
+        profile.pan,
+
+      aadhaar_number:
+        profile.aadhaar_number,
+
+      // commission_type:
+      //   profile.commission_type,
+
+      food:
+        profile.food,
+
+      // longitude:
+      //   profile.longitude,
+
+      // latitude:
+      //   profile.latitude,
+
+      servicable_radius_km:
+        profile.deliveryRadius,
+
+      bank_name:
+        profile.payout.bankName,
+
+      account_number:
+        profile.payout.account,
+
+      ifsc_code:
+        profile.payout.ifsc,
+
+      upi_id:
+        profile.payout.upi,
+
+      // estimated_delivery_time:
+      //   profile.etaMins,
+
+      minimum_order_amount:
+        profile.minOrder,
+
+      profile_photo:
+        profile.profile_photo,
+
+      logo:
+        profile.logo,
+
+      gst_certificate:
+        profile.documents.gst,
+
+      fssai_certificate:
+        profile.documents.fssai,
+
+      pan_card:
+        profile.documents.pan,
+
+      // business_certificate:
+      //   profile.documents.license,
+
+      aadhaar_card:
+        profile.documents.aadhaar,
+    };
+
+    const res =
+      await addMerchantDetails(
+        payload
+      );
 
     if (res?.status) {
+
       toast.success(
-  "Profile saved successfully"
-);
-      fetchProfileFromAPI();
+        "Profile saved successfully"
+      );
+
+      // ✅ REFRESH PROFILE
+      await fetchProfileFromAPI();
+
     } else {
+
       toast.error(
-  "Failed to save profile"
-);
+        res?.message ||
+        "Failed to save profile"
+      );
+
     }
+
   } catch (error) {
+
+    console.log(error);
+
     toast.error(
       "Something went wrong"
     );
+
   } finally {
+
     setSaving(false);
+
   }
 };
 
@@ -711,11 +959,7 @@ async () => {
               <div className="w-20 h-20 rounded-lg bg-orange-50 flex items-center justify-center overflow-hidden">
                 {profile.logo ? (
                   <img
-                  src={
-                    profile.logo instanceof File
-                      ? getImagePreview(profile.logo)
-                      : profile.logo
-                  }
+                  src={getImageUrl(profile.logo)}
                   alt="logo"
                   className="w-full h-full object-cover"
                 />
@@ -726,7 +970,7 @@ async () => {
               <div>
                 <div className="text-sm text-gray-500">Store Preview</div>
                 <div className="text-xl font-semibold">{profile.storeName || "Your Store"}</div>
-                <div className="text-sm text-gray-600">{profile.description || "Store description goes here."}</div>
+                <div className="text-sm text-gray-600">{profile.merchant_discreption || "Store description goes here."}</div>
               </div>
             </div>
 
@@ -745,12 +989,12 @@ async () => {
             </div>
             <div className="text-xs text-gray-500 mt-2">{completionScore}% complete</div>
 
-            <div className="mt-4">
+            {/* <div className="mt-4">
               <div className="text-sm text-gray-500">Average Rating</div>
               <div className="text-2xl font-bold">{profile?.performance?.rating || 0} / 5</div>
               <div className="text-sm text-gray-500 mt-2">Orders completed: <strong>{profile?.performance?.completed || 0}</strong></div>
               <div className="text-sm text-gray-500">Cancellations: <strong>{profile?.performance?.cancellations || 0}</strong></div>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -764,7 +1008,7 @@ async () => {
               {/* storeName editable (coming from signup but allowed to edit here) */}
               <input value={profile.storeName || ""} 
               disabled={saving}
-              onChange={(e)=>update("storeName", e.target.value)} placeholder="Store name" className="mt-1 p-2 border rounded-xl" />
+              onChange={(e)=>update("storeName", e.target.value)} placeholder="Enter Store name" className="mt-1 p-2 border rounded-xl" />
             </label>
 
             <label className="flex flex-col">
@@ -857,13 +1101,13 @@ async () => {
             </button>
             </label>
 
-            <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Contact Number (read-only)</span>
+            {/* <label className="flex flex-col">
+              <span className="text-sm text-gray-600">Contact Number (read-only)</span> */}
               {/* contact is read-only */}
-              <input value={profile.contact} readOnly 
+              {/* <input value={profile.contact} readOnly 
               disabled={saving}
               className="mt-1 p-2 border rounded-xl bg-gray-50" />
-            </label>
+            </label> */}
 
             <label className="flex flex-col md:col-span-2">
               <span className="text-sm text-gray-600">Email Address</span>
@@ -875,11 +1119,20 @@ async () => {
 
             <label className="flex flex-col md:col-span-2">
               <span className="text-sm text-gray-600">Store Description</span>
-              <textarea disabled={saving} value={profile.description} onChange={(e)=>update("description", e.target.value)} placeholder="Short description for customers" className="mt-1 p-2 border rounded-xl" />
+              <textarea
+                disabled={saving}
+                value={profile.merchant_discreption || ""}
+                onChange={(e) =>
+                  update("merchant_discreption", e.target.value)
+                }
+                placeholder="Short description for customers"
+                className="mt-1 p-2 border rounded-xl"
+              />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Store Logo / Banner</span>
+              <div className="p-1 border rounded-xl">
               <input type="file" 
               disabled={saving}
               onClick={(e) => {
@@ -891,6 +1144,7 @@ async () => {
 
                 update("logo", file); // ✅ ONLY THIS
               }} className="mt-1" />
+            </div>
             </label>
           </div>
         </section>
@@ -901,8 +1155,25 @@ async () => {
 
   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
+      {/* Owner Name */}
+      <label className="flex flex-col md:col-span-2">
+        <span className="text-sm text-gray-600 mb-1">
+          Owner Name
+        </span>
+
+        <input
+          value={profile.ownerName || ""}
+          disabled={saving}
+          onChange={(e)=>
+            update("ownerName", e.target.value)
+          }
+          placeholder="Enter owner name"
+          className="p-2 border rounded-xl"
+        />
+      </label>
+
     {/* First Name */}
-    <label className="flex flex-col">
+    {/* <label className="flex flex-col">
       <span className="text-sm text-gray-600 mb-1">First Name</span>
       <input
         value={profile.first_name || ""}
@@ -916,10 +1187,10 @@ async () => {
         placeholder="Enter first name"
         className="p-2 border rounded-xl"
       />
-    </label>
+    </label> */}
 
     {/* Last Name */}
-    <label className="flex flex-col">
+    {/* <label className="flex flex-col">
       <span className="text-sm text-gray-600 mb-1">Last Name</span>
       <input
         value={profile.last_name || ""}
@@ -933,10 +1204,10 @@ async () => {
         placeholder="Enter last name"
         className="p-2 border rounded-xl"
       />
-    </label>
+    </label> */}
 
     {/* Gender */}
-    <label className="flex flex-col">
+    {/* <label className="flex flex-col">
       <span className="text-sm text-gray-600 mb-1">Gender</span>
       <select
         value={profile.gender || ""}
@@ -948,10 +1219,10 @@ async () => {
         <option value="Female">Female</option>
         <option value="Other">Other</option>
       </select>
-    </label>
+    </label> */}
 
     {/* DOB */}
-    <label className="flex flex-col">
+    {/* <label className="flex flex-col">
       <span className="text-sm text-gray-600 mb-1">Date of Birth</span>
       <input
         type="date"
@@ -960,10 +1231,10 @@ async () => {
         onChange={(e) => update("dob", e.target.value)}
         className="p-2 border rounded-xl"
       />
-    </label>
+    </label> */}
 
     {/* Profile Photo */}
-    <label className="flex flex-col md:col-span-2">
+    {/* <label className="flex flex-col md:col-span-2">
       <span className="text-sm text-gray-600 mb-1">Profile Photo</span>
 
       <input
@@ -990,7 +1261,7 @@ async () => {
           className="w-24 h-24 mt-3 rounded-xl object-cover border"
         />
       )}
-    </label>
+    </label> */}
 
     {/* Registered Phone */}
     <label className="flex flex-col">
@@ -1136,11 +1407,11 @@ async () => {
               onChange={(e)=>update("deliveryRadius", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
             </label>
 
-            <label className="flex flex-col">
+            {/* <label className="flex flex-col">
               <span className="text-sm text-gray-600">Estimated Delivery Time (mins)</span>
               <input type="number" value={profile.etaMins} disabled={saving}
               onChange={(e)=>update("etaMins", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
-            </label>
+            </label> */}
 
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">Minimum Order Amount (₹)</span>
@@ -1149,23 +1420,28 @@ async () => {
               onChange={(e)=>update("minOrder", Number(e.target.value))} className="mt-1 p-2 border rounded-xl" />
             </label>
 
-              {/* Commission Type */}
+              {/* Commission value */}
               <label className="flex flex-col">
                 <span className="text-sm text-gray-600">
-                  Commission Type
+                  Commission Value
                 </span>
 
                 <input
-                  value={profile.commission_type || ""}
-                  disabled={saving}
-                  onChange={(e)=>
-                    update("commission_type", e.target.value)
-                  }
-                  placeholder="Enter commission type"
-                  className="mt-1 p-2 border rounded-xl"
+                 value={
+                      profile.commission_value !== null &&
+                      profile.commission_value !== undefined
+                        ? profile.commission_value
+                        : "Not Assigned"
+                    }
+                  readOnly
+                  disabled
+                  className="
+                    mt-1 p-2 border rounded-xl
+                    bg-gray-100 text-gray-600
+                    cursor-not-allowed
+                  "
                 />
               </label>
-
               {/* Food */}
               <label className="flex flex-col">
                 <span className="text-sm text-gray-600">
@@ -1183,22 +1459,22 @@ async () => {
                   Select Food Type
                 </option>
 
-                <option value="Veg">
+                <option value="veg">
                   Veg
                 </option>
 
-                <option value="Non Veg">
+                <option value="non_veg">
                   Non Veg
                 </option>
 
-                <option value="Both">
+                <option value="Veg + Non-Veg">
                   Both
                 </option>
               </select>
               </label>
 
               {/* Latitude */}
-              <label className="flex flex-col">
+              {/* <label className="flex flex-col">
                 <span className="text-sm text-gray-600">
                   Latitude
                 </span>
@@ -1215,10 +1491,10 @@ async () => {
                   placeholder="Enter latitude"
                   className="mt-1 p-2 border rounded-xl"
                 />
-              </label>
+              </label> */}
 
               {/* Longitude */}
-              <label className="flex flex-col">
+              {/* <label className="flex flex-col">
                 <span className="text-sm text-gray-600">
                   Longitude
                 </span>
@@ -1235,9 +1511,9 @@ async () => {
                   placeholder="Enter longitude"
                   className="mt-1 p-2 border rounded-xl"
                 />
-              </label>
+              </label> */}
 
-            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center gap-2">
                 <input type="checkbox" 
                 disabled={saving}
@@ -1248,12 +1524,12 @@ async () => {
               <div className="text-sm text-gray-500">
                 Card / POS and UPI are not available currently.
               </div>
-            </div>
+            </div> */}
           </div>
         </section>
 
         {/* 4. Performance Metrics */}
-        <section className="bg-white rounded-2xl p-4 shadow space-y-3">
+        {/* <section className="bg-white rounded-2xl p-4 shadow space-y-3">
           <h3 className="font-semibold text-lg">📈 Performance Metrics</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1282,7 +1558,7 @@ async () => {
               ))}
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* 5. Payout & Banking Info */}
         <section className="bg-white rounded-2xl p-4 shadow space-y-3">
@@ -1305,6 +1581,25 @@ async () => {
               )
               } className="mt-1 p-2 border rounded-xl" />
               <div className="text-xs text-gray-500 mt-1">Displayed masked: {maskAccount(profile?.payout?.account)}</div>
+            </label>
+
+            <label className="flex flex-col">
+              <span className="text-sm text-gray-600">
+                IFSC Code
+              </span>
+
+              <input
+                value={profile?.payout?.ifsc || ""}
+                disabled={saving}
+                onChange={(e) =>
+                  update(
+                    "payout.ifsc",
+                    e.target.value.toUpperCase()
+                  )
+                }
+                placeholder="Enter IFSC Code"
+                className="mt-1 p-2 border rounded-xl"
+              />
             </label>
 
             <label className="flex flex-col">
@@ -1332,7 +1627,7 @@ async () => {
         <section className="bg-white rounded-2xl p-4 shadow space-y-3">
           <h3 className="font-semibold text-lg">🪪 Documents (upload)</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 border rounded-xl">
+            {/* <div className="p-3 border rounded-xl">
               <div className="text-sm text-gray-600">Business License</div>
               <input type="file" 
               disabled={saving}            
@@ -1346,7 +1641,7 @@ async () => {
                   ? getImagePreview(profile.documents.license)
                   : profile.documents.license
               } alt="lic" className="mt-2 w-full h-24 object-cover rounded" />}
-            </div>
+            </div> */}
             <div className="p-3 border rounded-xl">
               <div className="text-sm text-gray-600">GST Certificate</div>
               <input type="file" 
@@ -1356,11 +1651,10 @@ async () => {
             }}
               accept="image/*,.pdf" onChange={(e)=>onFileChange(e, "gst")} className="mt-2" />
               {profile?.documents?.gst && <img
-              src={
-                profile?.documents?.gst instanceof File
-                  ? getImagePreview(profile.documents.gst)
-                  : profile.documents.gst
-              } alt="gst" className="mt-2 w-full h-24 object-cover rounded" />}
+                src={getImageUrl(profile.documents.gst)}
+                alt="gst"
+                className="mt-2 w-full h-24 object-cover rounded"
+              />}
             </div>
             <div className="p-3 border rounded-xl">
              <div className="text-sm text-gray-600">PAN Card</div>
@@ -1375,11 +1669,8 @@ async () => {
               className="mt-2"
               />
               {profile?.documents?.pan && <img
-              src={
-                profile?.documents?.pan instanceof File
-                  ? getImagePreview(profile.documents.pan)
-                  : profile.documents.pan
-              } alt="id" className="mt-2 w-full h-24 object-cover rounded" />}
+              src={getImageUrl(profile.documents.pan)}
+              alt="id" className="mt-2 w-full h-24 object-cover rounded" />}
             </div>
             <div className="p-3 border rounded-xl">
   <div className="text-sm text-gray-600">
@@ -1399,11 +1690,7 @@ async () => {
 
   {profile?.documents?.fssai && (
     <img
-      src={
-        profile.documents.fssai instanceof File
-          ? getImagePreview(profile.documents.fssai)
-          : profile.documents.fssai
-      }
+     src={getImageUrl(profile.documents.fssai)}
       alt="fssai"
       className="mt-2 w-full h-24 object-cover rounded"
     />
@@ -1429,11 +1716,7 @@ async () => {
 
   {profile?.documents?.aadhaar && (
     <img
-      src={
-        profile.documents.aadhaar instanceof File
-          ? getImagePreview(profile.documents.aadhaar)
-          : profile.documents.aadhaar
-      }
+      src={getImageUrl(profile.documents.aadhaar)}
       alt="aadhaar"
       className="mt-2 w-full h-24 object-cover rounded"
     />
@@ -1492,6 +1775,22 @@ async () => {
               <button onClick={logout}
               disabled={saving}
               className="px-4 py-2 rounded-xl border text-red-500">Logout</button>
+
+                <button
+                  onClick={handleRequestProfileEdit}
+                  disabled={requestLoading}
+                  className="
+                    px-4 py-2 rounded-xl
+                    bg-blue-600 text-white
+                  "
+                >
+                  {
+                    requestLoading
+                      ? "Sending Request..."
+                      : "Request Profile Update"
+                  }
+                </button>
+
             </div>
           </div>
         </section>

@@ -14,10 +14,36 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import ProfilePage from "./pages/ProfilePage";
 import MarketingPage from "./pages/MarketingPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
+import { toast } from "react-hot-toast";
+import ProfileGuard from "./components/ProfileGuard";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("accessToken");
   return token ? children : <Navigate to="/" replace />;
+}
+
+function MerchantProtectedRoute({
+  children,
+}) {
+  const token =
+    localStorage.getItem("accessToken");
+
+  const completion =
+    Number(
+      localStorage.getItem(
+        "profile_completion"
+      ) || 0
+    );
+
+  if (!token) {
+    return <Navigate to="/" replace />;
+  }
+
+ if (completion < 100) {
+  return <ProfileGuard />;
+}
+
+  return children;
 }
 
 export default function App() {
@@ -30,14 +56,52 @@ export default function App() {
 
         {/* Protected Merchant Routes */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
-        <Route path="/menu" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
-        <Route path="/earnings" element={<ProtectedRoute><EarningsPage /></ProtectedRoute>} />
-        <Route path="/ratings" element={<ProtectedRoute><RatingsPage /></ProtectedRoute>} />
+        <Route
+            path="/orders"
+            element={
+              <MerchantProtectedRoute>
+                <OrdersPage />
+              </MerchantProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/menu"
+            element={
+              <MerchantProtectedRoute>
+                <MenuPage />
+              </MerchantProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/earnings"
+            element={
+              <MerchantProtectedRoute>
+                <EarningsPage />
+              </MerchantProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/ratings"
+            element={
+              <MerchantProtectedRoute>
+                <RatingsPage />
+              </MerchantProtectedRoute>
+            }
+          />
         <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
         <Route path="/marketing" element={<ProtectedRoute><MarketingPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="/order/:id" element={<ProtectedRoute><OrderDetailsPage /></ProtectedRoute>} />
+        <Route
+          path="/order/:id"
+          element={
+            <MerchantProtectedRoute>
+              <OrderDetailsPage />
+            </MerchantProtectedRoute>
+          }
+        />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -13,7 +13,7 @@ export const getMerchantProfile = async (payload) => {
   );
   return res.data;
 };
-
+ 
 // /**
 //  * Edit Merchant Profile (FORM-DATA)
 //  * POST /api/v1/common/orders/edit-profile-merchant/
@@ -100,7 +100,10 @@ export const addMerchantDetails = async (payload) => {
   appendIfExists("city", payload.city);
   appendIfExists("state", payload.state);
   appendIfExists("pincode", payload.pincode);
-  appendIfExists("merchant_type", payload.merchant_type);
+  appendIfExists(
+    "merchant_discreption",
+    payload.merchant_discreption
+  );
 
   // Owner Details
   appendIfExists("owner_name", payload.owner_name);
@@ -124,6 +127,7 @@ export const addMerchantDetails = async (payload) => {
   appendIfExists("servicable_radius_km", payload.servicable_radius_km);
   appendIfExists("bank_name", payload.bank_name);
   appendIfExists("account_number", payload.account_number);
+  appendIfExists("ifsc_code", payload.ifsc_code);
   appendIfExists("upi_id", payload.upi_id);
   appendIfExists("estimated_delivery_time", payload.estimated_delivery_time);
   appendIfExists("minimum_order_amount", payload.minimum_order_amount);
@@ -180,3 +184,18 @@ export const addMerchantDetails = async (payload) => {
 //   );
 //   return res.data;
 // };
+
+/**
+ * Request Profile Edit Permission
+ * POST /api/v1/common/orders/request-edit/
+ */
+export const requestProfileEdit = async () => {
+  const res = await api.post(
+    "/api/v1/common/orders/request-edit/",
+    {
+      grant_me: true,
+    }
+  );
+
+  return res.data;
+};
