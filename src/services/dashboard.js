@@ -9,7 +9,7 @@ import api from "./api";
 
 export const getDashboardData = async (userId) => {
   const res = await api.post(
-    "/api/v1/common/orders/my-orders/",
+    "/api/v1/common/merchant/my-orders-dashboard/",
     {
       user: userId,
     }
@@ -22,7 +22,7 @@ export const updateMerchantOnlineStatus =
   async (payload) => {
 
     const res = await api.post(
-      "/api/v1/common/orders/merchant-online-status/",
+      "/api/v1/common/merchant/merchant-online-status/",
       payload
     );
 

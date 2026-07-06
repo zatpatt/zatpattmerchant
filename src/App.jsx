@@ -17,6 +17,9 @@ import OrderDetailsPage from "./pages/OrderDetailsPage";
 import { toast } from "react-hot-toast";
 import ProfileGuard from "./components/ProfileGuard";
 
+import LocationMapPage from "./pages/LocationMapPage";
+
+
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("accessToken");
   return token ? children : <Navigate to="/" replace />;
@@ -55,7 +58,14 @@ export default function App() {
         <Route path="/otp" element={<OtpPage />} />
 
         {/* Protected Merchant Routes */}
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route
+        path="/dashboard"
+        element={
+          <MerchantProtectedRoute>
+            <DashboardPage />
+          </MerchantProtectedRoute>
+        }
+      />
         <Route
             path="/orders"
             element={
@@ -91,6 +101,16 @@ export default function App() {
               </MerchantProtectedRoute>
             }
           />
+
+          <Route
+            path="/location-map"
+            element={
+              <ProtectedRoute>
+                <LocationMapPage />
+              </ProtectedRoute>
+            }
+          />
+          
         <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
         <Route path="/marketing" element={<ProtectedRoute><MarketingPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

@@ -7,7 +7,7 @@ import api from "./api";
 
 export const getLiveOrders = async (userId) => {
   const res = await api.post(
-    "/api/v1/common/orders/my-live-orders/",
+    "/api/v1/common/merchant/my-live-orders/",
     {
       user_id: userId,
     }

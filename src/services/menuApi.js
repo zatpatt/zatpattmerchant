@@ -6,7 +6,7 @@ import api from "./api";
  */
 export const getMerchantMenu = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-menu-list/",
+    "/api/v1/common/merchant/merchant-menu-list/",
     payload
   );
   return res.data;
@@ -56,7 +56,7 @@ formData.append(
 
 export const getMenuCategories = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/menu-category-dropdown/",
+    "/api/v1/common/merchant/menu-category-dropdown/",
     payload
   );
   return res.data;
@@ -68,7 +68,7 @@ export const getMenuCategories = async (payload) => {
  */
 export const getMenuCategoryList = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/list-menu-category/",
+    "/api/v1/common/merchant/list-menu-category/",
     payload
   );
   return res.data;
@@ -80,7 +80,7 @@ export const getMenuCategoryList = async (payload) => {
  */
 export const addMenuCategory = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/add-menu-category/",
+    "/api/v1/common/merchant/add-menu-category/",
     payload
   );
   return res.data;
@@ -88,7 +88,7 @@ export const addMenuCategory = async (payload) => {
 
 export const getMenuDropdownCategories = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/menu-category-dropdown/",
+    "/api/v1/common/merchant/menu-category-dropdown/",
     payload
   );
   return res.data;
@@ -99,7 +99,7 @@ export const getMenuDropdownCategories = async (payload) => {
  */
 export const addOffer = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/add-offers/",
+    "/api/v1/common/merchant/add-offers/",
     payload
   );
   return res.data;
@@ -110,7 +110,7 @@ export const addOffer = async (payload) => {
  */
 export const getOffers = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/get-offers/",
+    "/api/v1/common/merchant/get-offers/",
     payload
   );
   return res.data;
@@ -121,7 +121,7 @@ export const getOffers = async (payload) => {
  */
 export const editOffer = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/edit-offer/",
+    "/api/v1/common/merchant/edit-offer/",
     payload
   );
   return res.data;
@@ -133,7 +133,7 @@ export const editOffer = async (payload) => {
  */
 export const getMenuInsights = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-menu-insights/",
+    "/api/v1/common/merchant/merchant-menu-insights/",
     payload
   );
 
@@ -146,7 +146,7 @@ export const getMenuInsights = async (payload) => {
  */
 export const editMenuCategory = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/edit-menu-category/",
+    "/api/v1/common/merchant/edit-menu-category/",
     payload
   );
 
@@ -159,7 +159,7 @@ export const editMenuCategory = async (payload) => {
  */
 export const getMerchantMenuDetail = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-menu-detail/",
+    "/api/v1/common/merchant/merchant-menu-detail/",
     payload
   );
 
@@ -262,7 +262,7 @@ export const editMerchantMenu = async (
   }
 
   const res = await api.post(
-    "/api/v1/common/orders/edit-menu-book/",
+    "/api/v1/common/merchant/edit-menu-book/",
     formData
   );
 

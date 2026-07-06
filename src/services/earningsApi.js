@@ -8,7 +8,7 @@ import api from "./api";
  */
 export const getEarningsOverview = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/orders-overview/",
+    "/api/v1/common/merchant/orders-overview/",
     payload
   );
 
@@ -24,7 +24,7 @@ export const getEarningsOverview = async (payload) => {
  */
 export const getPendingPayouts = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-pending-payouts/",
+    "/api/v1/common/merchant/merchant-pending-payouts/",
     payload
   );
   return res.data;
@@ -35,7 +35,7 @@ export const getPendingPayouts = async (payload) => {
  */
 export const getPayoutHistory = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-self-payout-detail/",
+    "/api/v1/common/merchant/merchant-self-payout-detail/",
     payload
   );
   return res.data;
@@ -46,7 +46,7 @@ export const getPayoutHistory = async (payload) => {
  */
 export const requestMerchantPayout = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-request-payout/",
+    "/api/v1/common/merchant/merchant-request-payout/",
     payload
   );
   return res.data;
@@ -58,7 +58,7 @@ export const requestMerchantPayout = async (payload) => {
  */
 export const getOrdersHistory = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-history/",
+    "/api/v1/common/merchant/merchant-history/",
     payload
   );
   return res.data;
@@ -70,7 +70,7 @@ export const getOrdersHistory = async (payload) => {
  */
 export const getMerchantInsights = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-insights/",
+    "/api/v1/common/merchant/merchant-insights/",
     payload
   );
   return res.data;

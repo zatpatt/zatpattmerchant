@@ -155,9 +155,27 @@ export default function OtpPage() {
       );
     }
 
-    navigate("/dashboard", {
-  replace: true,
-});
+const completion =
+  Number(data.profile_completion || 0);
+
+localStorage.setItem(
+  "profile_completion",
+  completion
+);
+
+if (completion >= 100) {
+
+  navigate("/dashboard", {
+    replace: true,
+  });
+
+} else {
+
+  navigate("/profile", {
+    replace: true,
+  });
+
+}
 
   } catch (err) {
 

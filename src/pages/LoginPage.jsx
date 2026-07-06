@@ -22,15 +22,27 @@ export default function LoginPage() {
   
 useEffect(() => {
 
-  if (
-    localStorage.getItem("accessToken")
-  ) {
+ if (
+  localStorage.getItem("accessToken")
+) {
 
-    navigate("/dashboard", {
+  const completion =
+    Number(
+      localStorage.getItem(
+        "profile_completion"
+      ) || 0
+    );
+
+  navigate(
+    completion >= 100
+      ? "/dashboard"
+      : "/profile",
+    {
       replace: true,
-    });
+    }
+  );
 
-  }
+}
 
 }, []);
 

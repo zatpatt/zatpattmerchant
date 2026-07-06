@@ -17,7 +17,7 @@ export const getMerchantOrders = async (userId, status, paymentStatus) => {
   }
 
   const res = await api.post(
-    "/api/v1/common/orders/merchant-order-page/",
+    "/api/v1/common/merchant/merchant-order-page/",
     payload
   );
 
@@ -30,7 +30,7 @@ export const getMerchantOrders = async (userId, status, paymentStatus) => {
  */
 export const getMerchantOrderDetail = async (orderId) => {
   const res = await api.post(
-    "/api/v1/common/orders/merchant-order-detail/",
+    "/api/v1/common/merchant/merchant-order-detail/",
     {
       order_id: orderId,
     }
@@ -45,7 +45,7 @@ export const getMerchantOrderDetail = async (orderId) => {
  */
 export const acceptOrderMerchant = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/accept-order-merchant/",
+    "/api/v1/common/merchant/accept-order-merchant/",
     payload
   );
 
@@ -58,7 +58,7 @@ export const acceptOrderMerchant = async (payload) => {
  */
 export const updateOrderStatus = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/update-order-status/",
+    "/api/v1/common/merchant/update-order-status/",
     payload
   );
 
@@ -71,7 +71,7 @@ export const updateOrderStatus = async (payload) => {
  */
 export const updatePreparingStatus = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/update-preparing-status/",
+    "/api/v1/common/merchant/update-preparing-status/",
     payload
   );
   return res.data;
@@ -83,7 +83,7 @@ export const updatePreparingStatus = async (payload) => {
  */
 export const updatePreparedStatus = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/update-prepared-status/",
+    "/api/v1/common/merchant/update-prepared-status/",
     payload
   );
   return res.data;

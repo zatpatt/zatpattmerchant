@@ -7,12 +7,17 @@ import App from "./App";
 import "./index.css";
 import { NotificationProvider } from "./context/NotificationContext";
 
+import GoogleMapsProvider
+from "./components/GoogleMapsProvider";
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
+      <GoogleMapsProvider>
         <NotificationProvider>
           <App />
         </NotificationProvider>
-      </BrowserRouter>
+      </GoogleMapsProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

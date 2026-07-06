@@ -8,7 +8,7 @@ import api from "./api";
  */
 export const getMerchantProfile = async (payload) => {
   const res = await api.post(
-    "/api/v1/common/orders/my-profile-merchant/",
+    "/api/v1/common/merchant/my-profile-merchant/",
     payload
   );
   return res.data;
@@ -69,13 +69,13 @@ export const getMerchantProfile = async (payload) => {
  * Edit Working Hours
  * POST /api/v1/common/orders/edit-wh-merchant/
  */
-export const editWorkingHours = async (payload) => {
-  const res = await api.post(
-    "/api/v1/common/orders/edit-wh-merchant/",
-    payload
-  );
-  return res.data;
-};
+// export const editWorkingHours = async (payload) => {
+//   const res = await api.post(
+//     "/api/v1/common/merchant/edit-wh-merchant/",
+//     payload
+//   );
+//   return res.data;
+// };
 
 /**
  * Add Merchant Details (FORM-DATA)
@@ -105,6 +105,19 @@ export const addMerchantDetails = async (payload) => {
     payload.merchant_discreption
   );
 
+  appendIfExists("area", payload.area);
+  appendIfExists("location", payload.location);
+
+  appendIfExists(
+    "opening_time",
+    payload.opening_time
+  );
+
+  appendIfExists(
+    "closing_time",
+    payload.closing_time
+  );
+
   // Owner Details
   appendIfExists("owner_name", payload.owner_name);
   appendIfExists("first_name", payload.first_name);
@@ -127,6 +140,7 @@ export const addMerchantDetails = async (payload) => {
   appendIfExists("servicable_radius_km", payload.servicable_radius_km);
   appendIfExists("bank_name", payload.bank_name);
   appendIfExists("account_number", payload.account_number);
+  appendIfExists("re_account_number", payload.re_account_number);
   appendIfExists("ifsc_code", payload.ifsc_code);
   appendIfExists("upi_id", payload.upi_id);
   appendIfExists("estimated_delivery_time", payload.estimated_delivery_time);
@@ -162,7 +176,7 @@ export const addMerchantDetails = async (payload) => {
   }
 
   const res = await api.post(
-    "/api/v1/common/orders/add-merchant-details/",
+    "/api/v1/common/merchant/add-merchant-details/",
     formData,
     {
       headers: {
@@ -191,9 +205,138 @@ export const addMerchantDetails = async (payload) => {
  */
 export const requestProfileEdit = async () => {
   const res = await api.post(
-    "/api/v1/common/orders/request-edit/",
+    "/api/v1/common/merchant/request-to-edit/",
     {
       grant_me: true,
+    }
+  );
+
+  return res.data;
+};
+
+export const editMerchantProfile = async (payload) => {
+  const formData = new FormData();
+
+  const appendIfExists = (key, value) => {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      formData.append(key, value);
+    }
+  };
+
+  appendIfExists("address", payload.address);
+  appendIfExists("area", payload.area);
+  appendIfExists("city", payload.city);
+  appendIfExists("mobile", payload.mobile);
+  appendIfExists("email", payload.email);
+
+  appendIfExists("owner_name", payload.owner_name);
+
+  appendIfExists("gst_number", payload.gst_number);
+  appendIfExists("fssai_number", payload.fssai_number);
+  appendIfExists("pan_number", payload.pan_number);
+
+  appendIfExists("food", payload.food);
+
+  appendIfExists("latitude", payload.latitude);
+  appendIfExists("longitude", payload.longitude);
+
+  appendIfExists(
+    "servicable_radius_km",
+    payload.servicable_radius_km
+  );
+
+  appendIfExists("bank_name", payload.bank_name);
+  appendIfExists("account_number", payload.account_number);
+  appendIfExists("re_account_number", payload.re_account_number);
+  appendIfExists("ifsc_code", payload.ifsc_code);
+  appendIfExists("upi_id", payload.upi_id);
+
+  appendIfExists(
+    "aadhaar_number",
+    payload.aadhaar_number
+  );
+
+  appendIfExists(
+    "minimum_order_amount",
+    payload.minimum_order_amount
+  );
+
+  appendIfExists(
+    "estimated_delivery_time",
+    payload.estimated_delivery_time
+  );
+
+  appendIfExists(
+    "merchant_discreption",
+    payload.merchant_discreption
+  );
+
+  appendIfExists(
+    "opening_time",
+    payload.opening_time
+  );
+
+  appendIfExists(
+    "closing_time",
+    payload.closing_time
+  );
+
+  appendIfExists(
+    "is_online",
+    payload.is_online
+  );
+
+  if (payload.logo instanceof File) {
+    formData.append("logo", payload.logo);
+  }
+
+  if (payload.gst_certificate instanceof File) {
+    formData.append(
+      "gst_certificate",
+      payload.gst_certificate
+    );
+  }
+
+  if (payload.fssai_certificate instanceof File) {
+    formData.append(
+      "fssai_certificate",
+      payload.fssai_certificate
+    );
+  }
+
+  if (payload.pan_card instanceof File) {
+    formData.append(
+      "pan_card",
+      payload.pan_card
+    );
+  }
+
+  if (payload.business_certificate instanceof File) {
+    formData.append(
+      "business_certificate",
+      payload.business_certificate
+    );
+  }
+
+  if (payload.aadhaar_card instanceof File) {
+    formData.append(
+      "aadhaar_card",
+      payload.aadhaar_card
+    );
+  }
+
+  const res = await api.post(
+    "/api/v1/common/merchant/edit-profile-merchant/",
+    formData,
+    {
+      headers: {
+        "Content-Type":
+          "multipart/form-data",
+      },
     }
   );
 
