@@ -818,7 +818,7 @@ const handleProtectedNavigation =
 
           {/* TODAY */}
 
-          <div className="bg-white rounded-2xl p-4 shadow">
+{/*           <div className="bg-white rounded-2xl p-4 shadow">
             <h3 className="text-lg font-semibold mb-3 text-orange-600">
               🔥 Top Selling Today
             </h3>
@@ -843,13 +843,13 @@ const handleProtectedNavigation =
                 </div>
               ))
             )}
-          </div>
+          </div> */}
 
           {/* OVERALL */}
 
-          <div className="bg-white rounded-2xl p-4 shadow">
+        <div className="bg-white rounded-2xl p-4 shadow">
             <h3 className="text-lg font-semibold mb-3 text-orange-600">
-              🏆 Overall Top Selling
+              🏆 Top Selling Items
             </h3>
 
             {stats.topOverall.length === 0 ? (
@@ -876,7 +876,7 @@ const handleProtectedNavigation =
 
           {/* TOP RATED */}
 
-          <div className="bg-white rounded-2xl p-4 shadow">
+{/*           <div className="bg-white rounded-2xl p-4 shadow">
             <h3 className="text-lg font-semibold mb-3 text-orange-600">
               ⭐ Overall Top Rated Products
             </h3>
@@ -901,7 +901,7 @@ const handleProtectedNavigation =
                 </div>
               ))
             )}
-          </div>
+          </div> */}
         </div>
       </div>
 

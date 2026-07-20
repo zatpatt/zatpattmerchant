@@ -18,7 +18,7 @@ import { toast } from "react-hot-toast";
 import ProfileGuard from "./components/ProfileGuard";
 
 import LocationMapPage from "./pages/LocationMapPage";
-
+import SupportChatPage from "./pages/SupportChatPage";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("accessToken");
@@ -101,6 +101,11 @@ export default function App() {
               </MerchantProtectedRoute>
             }
           />
+
+<Route
+  path="/support-chat"
+  element={<SupportChatPage />}
+/>
 
           <Route
             path="/location-map"

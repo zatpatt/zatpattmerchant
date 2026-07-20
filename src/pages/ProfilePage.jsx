@@ -1,4 +1,5 @@
 // src/pages/ProfilePage.jsx
+
 import React, { useState, useEffect } from "react";
 import PageHeader from "../components/PageHeader";
 import { ArrowLeft } from "lucide-react";
@@ -73,6 +74,8 @@ export default function ProfilePage() {
   useState(false);
 
   const handleRequestProfileEdit = async () => {
+
+    console.log("REQUEST EDIT CLICKED");
 
   if (requestLoading) return;
 
@@ -199,6 +202,8 @@ export default function ProfilePage() {
 
 const [isProfileExists, setIsProfileExists] = useState(false);
 
+const [loading, setLoading] = useState(true);
+
 const [kycVerified, setKycVerified] =
   useState(true);
 
@@ -206,7 +211,12 @@ const fetchProfileFromAPI = async () => {
 
   if (!USER_ID) return;
 
-  if (loading) return;
+//   if (!USER_ID) {
+//   setLoading(false);
+//   toast.error("User not found");
+//   return;
+// }
+//   //if (loading) return;
 
   try {
 
@@ -239,11 +249,17 @@ const fetchProfileFromAPI = async () => {
       );
 
       setEditRequested(
-        data.edit_requested || false
+        data.is_requested || false
       );
 
+      console.log("API RESPONSE", data);
+console.log("is_requested", data.is_requested);
+
+      console.log("kyc_status", data.kyc_status);
+console.log("kycVerified", !!data.kyc_status);
+
       setKycVerified(
-        data.kyc_status === true
+        !!data.kyc_status
       );
 
     setIsProfileExists(
@@ -428,12 +444,13 @@ const fetchProfileFromAPI = async () => {
 
   } catch (error) {
 
-    
-    setIsProfileExists(false);
+  console.log(error);
 
-    console.log(error);
+  toast.error(
+    "Failed to load profile"
+  );
 
-  } finally {
+} finally {
 
     setLoading(false);
 
@@ -460,10 +477,6 @@ const USER_ID =
 // let hours = parseInt(parts[0]);
 // const minutes = parts[1];
 
-const isProfileLocked =
-  isProfileExists &&
-  !kycVerified;
-
 
 const [canEdit, setCanEdit] =
   useState(false);
@@ -471,10 +484,21 @@ const [canEdit, setCanEdit] =
 const [editRequested, setEditRequested] =
   useState(false);
 
+  const isProfileLocked =
+  loading ||
+  (isProfileExists && !canEdit);
+
+
   const disableRequestEdit =
   !kycVerified ||
   editRequested ||
   requestLoading;
+
+  console.log({
+  kycVerified,
+  editRequested,
+  requestLoading
+});
 
 const getButtonLabel = () => {
 
@@ -499,15 +523,20 @@ const getButtonLabel = () => {
 
 const handleMainButton = async () => {
 
+  console.log({
+    isProfileExists,
+    canEdit,
+    editRequested,
+    kycVerified
+  });
+
   if (!isProfileExists) {
     await handleSave();
     return;
   }
 
-  if (!kycVerified && !canEdit) {
-    toast.error(
-      "Your verification is pending"
-    );
+  if (!kycVerified) {
+    toast.error("Your verification is pending");
     return;
   }
 
@@ -518,9 +547,9 @@ const handleMainButton = async () => {
 
   if (!editRequested) {
     await handleRequestProfileEdit();
+    return;
   }
-};  
-
+};
 
 const REGEX = {
   MOBILE: /^[6-9][0-9]{9}$/,
@@ -563,7 +592,7 @@ const [confirmAccountNumber, setConfirmAccountNumber] =
   useState("");
 
 const [saving, setSaving] = useState(false);
-const [loading, setLoading] = useState(false);
+
 const [profile, setProfile] = useState(() => loadInitialProfile());
 
 useEffect(() => {
@@ -1460,16 +1489,18 @@ const handleSave = async () => {
       // ✅ REFRESH PROFILE
       await fetchProfileFromAPI();
 
-        const updatedCompletion =
-        Number(
-          localStorage.getItem(
-            "profile_completion"
-          ) || 0
-        );
+const updatedCompletion =
+  Number(
+    localStorage.getItem(
+      "profile_completion"
+    ) || 0
+  );
 
-        if (updatedCompletion === 100) {
-          navigate("/dashboard");
-        }
+if (updatedCompletion >= 100) {
+  navigate("/dashboard", {
+    replace: true,
+  });
+}
 
 
     } else {
@@ -1911,6 +1942,16 @@ const INDIAN_STATES = [
   "Puducherry"
 ];
 
+if (loading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-orange-50">
+      <div className="bg-white px-6 py-4 rounded-2xl shadow text-orange-500 font-semibold">
+        Loading profile...
+      </div>
+    </div>
+  );
+}
+
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col">
@@ -1964,10 +2005,12 @@ const INDIAN_STATES = [
             </div>
             <div className="text-xs text-gray-500 mt-2">{completionScore}% complete</div>
 
-{isProfileExists && !kycVerified && (
-  <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 p-4 rounded-xl">
-    Your verification is pending.
-    Please wait until verification is completed.
+{isProfileExists &&
+ kycVerified &&
+ !canEdit &&
+ !editRequested && (
+  <div className="bg-blue-50 border border-blue-300 p-4 rounded-xl">
+    KYC Approved. Request edit permission to modify profile details.
   </div>
 )}
 
@@ -2838,7 +2881,7 @@ const INDIAN_STATES = [
                   Non Veg
                 </option>
 
-                <option value="Veg + Non-Veg">
+                <option value="both">
                   Both
                 </option>
               </select>
@@ -3146,7 +3189,57 @@ const INDIAN_STATES = [
                   : profile.documents.license
               } alt="lic" className="mt-2 w-full h-24 object-cover rounded" />}
             </div> */}
-            <div className="p-3 border rounded-xl">
+
+            
+            <label className="flex flex-col">
+  <span className="text-sm text-gray-600">
+    GST Certificate
+  </span>
+
+  <div className="p-1 border rounded-xl">
+   {profile.documents.gst ? (
+  <>
+    <img
+      src={getImageUrl(profile.documents.gst)}
+      alt="GST"
+      className="mt-2 w-full h-24 object-cover rounded"
+    />
+
+    {!isProfileLocked && (
+      <input
+        type="file"
+        accept="image/*"
+        onClick={(e) => {
+          e.target.value = null;
+        }}
+       onChange={(e) =>
+          onFileChange(e, "gst")
+        }
+        className="mt-2"
+      />
+    )}
+  </>
+) : (
+  <input
+    type="file"
+    accept="image/*"
+    disabled={
+      saving ||
+      isProfileLocked
+    }
+    onClick={(e) => {
+      e.target.value = null;
+    }}
+    onChange={(e) =>
+      onFileChange(e, "gst")
+    }
+    className="mt-1"
+  />
+)}
+  </div>
+</label>
+
+            {/* <div className="p-3 border rounded-xl">
               <div className="text-sm text-gray-600">GST Certificate</div>
               {profile.documents.gst ? (
   <>
@@ -3174,9 +3267,58 @@ const INDIAN_STATES = [
     }
   />
 )}
-            </div>
+            </div> */}
 
-            <div className="p-3 border rounded-xl">
+
+            <label className="flex flex-col">
+  <span className="text-sm text-gray-600">
+   PAN Card
+  </span>
+
+  <div className="p-1 border rounded-xl">
+   {profile.documents.pan ? (
+  <>
+    <img
+      src={getImageUrl( profile.documents.pan)}
+      alt="PAN"
+      className="mt-2 w-full h-24 object-cover rounded"
+    />
+
+    {!isProfileLocked && (
+      <input
+        type="file"
+        accept="image/*"
+        onClick={(e) => {
+          e.target.value = null;
+        }}
+       onChange={(e) =>
+          onFileChange(e, "pan")
+        }
+        className="mt-2"
+      />
+    )}
+  </>
+) : (
+  <input
+    type="file"
+    accept="image/*"
+    disabled={
+      saving ||
+      isProfileLocked
+    }
+    onClick={(e) => {
+      e.target.value = null;
+    }}
+    onChange={(e) =>
+      onFileChange(e, "pan")
+    }
+    className="mt-1"
+  />
+)}
+  </div>
+</label>
+
+            {/* <div className="p-3 border rounded-xl">
              <div className="text-sm text-gray-600">PAN Card</div>
 {profile.documents.pan ? (
   <>
@@ -3204,10 +3346,59 @@ const INDIAN_STATES = [
     }
   />
 )}
-            </div>
+            </div> */}
 
 
-            <div className="p-3 border rounded-xl">
+
+              <label className="flex flex-col">
+  <span className="text-sm text-gray-600">
+ FSSAI Certificate
+  </span>
+
+  <div className="p-1 border rounded-xl">
+   {profile.documents.fssai ? (
+  <>
+    <img
+      src={getImageUrl( profile.documents.fssai)}
+      alt="FSSAI"
+      className="mt-2 w-full h-24 object-cover rounded"
+    />
+
+    {!isProfileLocked && (
+      <input
+        type="file"
+        accept="image/*"
+        onClick={(e) => {
+          e.target.value = null;
+        }}
+       onChange={(e) =>
+          onFileChange(e, "fssai")
+        }
+        className="mt-2"
+      />
+    )}
+  </>
+) : (
+  <input
+    type="file"
+    accept="image/*"
+    disabled={
+      saving ||
+      isProfileLocked
+    }
+    onClick={(e) => {
+      e.target.value = null;
+    }}
+    onChange={(e) =>
+      onFileChange(e, "fssai")
+    }
+    className="mt-1"
+  />
+)}
+  </div>
+</label>
+
+            {/* <div className="p-3 border rounded-xl">
   <div className="text-sm text-gray-600">
     FSSAI Certificate
   </div>
@@ -3238,9 +3429,64 @@ const INDIAN_STATES = [
     }
   />
 )}
-</div>
+</div> */}
+
+
+
 {/* Aadhaar Card */}
-<div className="p-3 border rounded-xl">
+
+
+
+            <label className="flex flex-col">
+  <span className="text-sm text-gray-600">
+   Aadhaar Card
+  </span>
+
+  <div className="p-1 border rounded-xl">
+   {profile.documents.aadhaar  ? (
+  <>
+    <img
+      src={getImageUrl( profile.documents.aadhaar)}
+      alt="Aadhaar"
+      className="mt-2 w-full h-24 object-cover rounded"
+    />
+
+    {!isProfileLocked && (
+      <input
+        type="file"
+        accept="image/*"
+        onClick={(e) => {
+          e.target.value = null;
+        }}
+       onChange={(e) =>
+          onFileChange(e, "aadhaar")
+        }
+        className="mt-2"
+      />
+    )}
+  </>
+) : (
+  <input
+    type="file"
+    accept="image/*"
+    disabled={
+      saving ||
+      isProfileLocked
+    }
+    onClick={(e) => {
+      e.target.value = null;
+    }}
+    onChange={(e) =>
+      onFileChange(e, "aadhaar")
+    }
+    className="mt-1"
+  />
+)}
+  </div>
+</label>
+
+
+{/* <div className="p-3 border rounded-xl">
   <div className="text-sm text-gray-600">
     Aadhaar Card
   </div>
@@ -3271,7 +3517,7 @@ const INDIAN_STATES = [
     }
   />
 )}
-</div>
+</div> */}
           </div>
         </section>
 
@@ -3303,11 +3549,10 @@ const INDIAN_STATES = [
 
     handleMainButton();
   }}
-  disabled={!kycVerified}
-  disabled={disableRequestEdit}
-   disabled={
+  disabled={
     saving ||
-    isProfileLocked
+    (!canSave && !isProfileExists) ||
+    (!kycVerified)
   }
   className={`
     px-5 py-2 rounded-xl text-white
@@ -3363,16 +3608,16 @@ const INDIAN_STATES = [
     <div className="flex flex-wrap gap-3">
 
       <button
-        onClick={() =>
-          toast("Support chat coming soon")
-        }
-        className="
-          px-5 py-2 rounded-xl
-          bg-orange-500 text-white
-        "
-      >
-        Chat with Support
-      </button>
+  onClick={() =>
+    navigate("/support-chat")
+  }
+  className="
+    px-5 py-2 rounded-xl
+    bg-orange-500 text-white
+  "
+>
+  Chat with Support
+</button>
 
       <button
         className="

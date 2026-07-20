@@ -79,7 +79,7 @@ export default function RatingsPage() {
 
     const res =
       await getMerchantChats({
-        user: USER_ID,
+        // user: USER_ID,
       });
 
     console.log(
@@ -118,7 +118,7 @@ toast.error(
 
     const res =
       await getMerchantReviewInsights({
-        user: USER_ID,
+        // user: USER_ID,
         filter: insightFilter,
       });
 
@@ -157,7 +157,7 @@ toast.error(
 
     const res =
       await getMerchantRating({
-        user: USER_ID,
+        // user: USER_ID,
       });
 
     console.log(
@@ -197,7 +197,7 @@ const fetchReviews = async () => {
 
     const res =
       await getMerchantReviews({
-        user: USER_ID,
+        // user: USER_ID,
       });
 
     console.log(
@@ -486,7 +486,7 @@ const ratingTrend = useMemo(() => {
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-5 rounded-2xl shadow space-y-2">
+          {/* <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-5 rounded-2xl shadow space-y-2">
             <p>💬 Most customers love your packaging and delivery speed.</p>
             <p>⚠️ Reviews mentioning delivery delays: {reviews.filter(r => (r.text||"").toLowerCase().includes("delay") || (r.text||"").toLowerCase().includes("late")).length}</p>
             <p>📈 Rating change (7d): {(() => {
@@ -494,7 +494,7 @@ const ratingTrend = useMemo(() => {
               const last = ratingTrend?.[ratingTrend.length - 1]?.rating || 0;
                return (last - first).toFixed(2);
             })()}</p>
-          </div>
+          </div> */}
 
           {pinnedMetrics.length > 0 && (
             <div className="bg-white p-4 rounded-2xl shadow space-y-2">
@@ -503,12 +503,12 @@ const ratingTrend = useMemo(() => {
             </div>
           )}
 
-          <div className="flex gap-2">
+          {/* <div className="flex gap-2">
             <button onClick={exportReviewsCSV} className="px-3 py-2 bg-orange-500 text-white rounded-xl flex items-center gap-2"><Download size={16} /> Export CSV
             </button>            
-            <button onClick={() => setReviews([])} className="px-3 py-2 bg-red-100 text-red-600 rounded-xl">Clear Reviews</button>
+            <button onClick={() => setReviews([])} className="px-3 py-2 bg-red-100 text-red-600 rounded-xl">Clear Reviews</button> */}
             {/* <button onClick={seedDemo} className="px-3 py-2 bg-gray-100 rounded-xl">Seed Demo</button> */}
-          </div>
+          {/* </div> */}
         </div>
       )}
 
@@ -539,7 +539,7 @@ const ratingTrend = useMemo(() => {
 
             <div className="ml-auto flex gap-2 items-center">
               <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search reviews, items, name" className="px-3 py-2 border rounded-xl text-sm" />
-              <button onClick={exportReviewsCSV} className="flex items-center gap-2 border px-3 py-1 rounded-xl text-sm"><Download size={16} /> Export</button>
+              {/* <button onClick={exportReviewsCSV} className="flex items-center gap-2 border px-3 py-1 rounded-xl text-sm"><Download size={16} /> Export</button> */}
             </div>
           </div>
 
@@ -618,7 +618,7 @@ const ratingTrend = useMemo(() => {
                 <Line type="monotone" dataKey="rating" stroke="#f97316" strokeWidth={3} dot={false} />
               </LineChart>
             </ResponsiveContainer>
-            <button onClick={() => exportReviewsCSV()} className="mt-3 flex items-center gap-2 border px-3 py-2 rounded-xl text-sm"><Download size={16} /> Export Rating Trends</button>
+            {/* <button onClick={() => exportReviewsCSV()} className="mt-3 flex items-center gap-2 border px-3 py-2 rounded-xl text-sm"><Download size={16} /> Export Rating Trends</button> */}
           </div>
 
           <div className="bg-white p-5 rounded-2xl shadow">
@@ -698,7 +698,7 @@ const ratingTrend = useMemo(() => {
             ))}
           </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow space-y-2">
+          {/* <div className="bg-white p-5 rounded-2xl shadow space-y-2">
             <h3 className="font-semibold">📤 Export & Reports</h3>
             <button onClick={exportReviewsCSV} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-sm w-full justify-center"><Download size={16} /> Export Reviews (CSV)</button>
             <button onClick={()=>toast(
@@ -707,7 +707,7 @@ const ratingTrend = useMemo(() => {
             <button onClick={()=>toast(
               "Export insights feature coming soon"
             )} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-sm w-full justify-center"><Download size={16} /> Export Insights</button>
-          </div>
+          </div> */}
         </div>
       )}
     </div>

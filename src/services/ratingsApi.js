@@ -37,7 +37,7 @@ export const getMerchantReviewInsights = async (payload) => {
  * Get Merchant Chat (Replies)
  */
 export const getMerchantChats = async (payload) => {
-  const res = await api.post(
+  const res = await api.get(
     "/api/v1/common/merchant/get-chat-merchant/",
     payload
   );

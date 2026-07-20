@@ -203,6 +203,8 @@ export default function MenuPage() {
   const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
 
+  const [showAddMenuModal, setShowAddMenuModal] = useState(false);
+
   const [savingMenu, setSavingMenu] =
   useState(false);
 
@@ -494,15 +496,18 @@ useEffect(() => {
 
     console.log("Add menu response:", res);
 
-    if (res?.status) {
-      toast.success("Menu added successfully");
+   if (res?.status) {
 
-      // reset form
-      setNewItemState(emptyItem);
+  toast.success(
+    "Menu added successfully"
+  );
 
-      // reload list
-      fetchMenu();
-    }
+  setNewItemState(emptyItem);
+
+  setShowAddMenuModal(false);
+
+  fetchMenu();
+}
   } catch (err) {
     console.error("Add menu error:", err);
   }
@@ -1210,7 +1215,7 @@ const filteredItems = useMemo(() => {
           {[
             { id: "items", label: "All Menus" },
             { id: "categories", label: "Categories" },
-            { id: "add", label: "Add Item" },
+            //{ id: "add", label: "Add Item" },
             // { id: "add-service", label: "Add Service" },            
             { id: "promotions", label: "Promotions" },
             { id: "insights", label: "Insights" },
@@ -1235,7 +1240,26 @@ const filteredItems = useMemo(() => {
   <div className="bg-white p-4 rounded-2xl shadow">
 
     {/* Title */}
-    <h2 className="text-lg font-semibold mb-3">All Menus</h2>
+   <div className="flex items-center justify-between mb-4">
+  <h2 className="text-lg font-semibold">
+    All Menus
+  </h2>
+
+  <button
+    onClick={() => setShowAddMenuModal(true)}
+    className="
+      px-4 py-2
+      bg-orange-500
+      text-white
+      rounded-xl
+      flex items-center gap-2
+      hover:bg-orange-600
+    "
+  >
+    <Plus size={16} />
+    Add Item
+  </button>
+</div>
 
     {/* MOBILE FRIENDLY FILTERS */}
     <div className="space-y-3">
@@ -2997,6 +3021,388 @@ editing.menu_image ? "Image selected" : "Upload photo"}</span>
     </div>
   </div>
 )}
+
+{showAddMenuModal && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center"
+    style={{
+      background:
+        "linear-gradient(180deg, rgba(255,240,230,0.85), rgba(255,245,240,0.95))",
+    }}
+  >
+    <div
+      className="
+        bg-white
+        rounded-3xl
+        w-[95%]
+        max-w-3xl
+        max-h-[90vh]
+        overflow-y-auto
+        p-6
+        shadow-2xl
+      "
+    >
+                <div
+  className="
+    fixed inset-0 z-50
+    flex items-center justify-center
+    bg-black/30
+  "
+>
+  <div
+    className="
+      bg-white
+      w-[95%]
+      max-w-3x
+      max-h-[90vh]
+      overflow-y-auto
+      rounded-3xl
+      p-6
+      shadow-2xl
+    "
+  >
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-semibold">
+          Add New Item
+        </h3>
+
+        <button
+          onClick={() =>
+            setShowAddMenuModal(false)
+          }
+          className="text-gray-500"
+        >
+          Close
+        </button>
+      </div>
+
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+              <input placeholder="Item name" value={newItemState.name} onChange={(e)=>setNewItemState(s=>({...s, name:e.target.value}))} className="p-2 border rounded-xl" />
+            
+             <input
+              placeholder="MRP (₹)"
+              value={newItemState.mrp}
+              onChange={(e) => {
+
+                const mrp = onlyDigits(e.target.value);
+
+                const selling =
+                  Number(newItemState.price || 0);
+
+                if (selling > Number(mrp)) {
+                  setPriceError(
+                    "Selling price cannot be greater than MRP"
+                  );
+                } else {
+                  setPriceError("");
+                }
+
+                setNewItemState((s) => ({
+                  ...s,
+                  mrp,
+                  discount: discountFromPrices(
+                    mrp,
+                    selling
+                  ),
+                }));
+              }}
+              className={`p-2 border rounded-xl ${
+                priceError ? "border-red-500" : ""
+              }`}
+            />
+
+              <input
+              placeholder="Selling price (₹)"
+              value={newItemState.price}
+              onChange={(e) => {
+
+                const selling =
+                  onlyDigits(e.target.value);
+
+                const mrp =
+                  Number(newItemState.mrp || 0);
+
+                if (Number(selling) > mrp) {
+                  setPriceError(
+                    "Selling price cannot be greater than MRP"
+                  );
+                } else {
+                  setPriceError("");
+                }
+
+                setNewItemState((s) => ({
+                  ...s,
+                  price: selling,
+                  discount: discountFromPrices(
+                    mrp,
+                    selling
+                  ),
+                }));
+              }}
+              className={`p-2 border rounded-xl ${
+                priceError ? "border-red-500" : ""
+              }`}
+            />
+
+                {priceError && (
+                  <p className="text-red-500 text-sm">
+                    {priceError}
+                  </p>
+                )}
+
+              <input placeholder="Discount (%)" value={newItemState.discount} onChange={(e)=>{ const d=clampDiscount(e.target.value); setNewItemState(s=>({...s, discount:d, price: priceFromMrpDiscount(s.mrp, d)})); }} className="p-2 border rounded-xl" />
+              {/* <input placeholder="Stock qty" value={newItemState.stock} onChange={(e)=>setNewItemState(s=>({...s, stock: onlyDigits(e.target.value)}))} className="p-2 border rounded-xl" />
+              <input placeholder="Unit / measurement" value={newItemState.unit} onChange={(e)=>setNewItemState(s=>({...s, unit: e.target.value}))} className="p-2 border rounded-xl" /> */}
+            </div>
+
+            <textarea placeholder="Description" value={newItemState.desc} onChange={(e)=>setNewItemState(s=>({...s, desc:e.target.value}))} className="w-full p-2 border rounded-xl mt-3" />
+            {/* <input placeholder="Tags (comma separated)" value={newItemState.tags} onChange={(e)=>setNewItemState(s=>({...s, tags: e.target.value}))} className="w-full p-2 border rounded-xl mt-2" /> */}
+
+            <select value={newItemState.category} onChange={(e)=>setNewItemState(s=>({...s, category: e.target.value}))} className="w-full p-2 border rounded-xl mt-2">
+              <option value="">Select Category</option>
+             {dropdownCategories.map((cat, index) => (
+              <option
+                key={cat.id || index}
+                value={cat.id || cat.category_id}
+              >
+                {cat.name || cat.category_name}
+              </option>
+            ))}
+            </select>
+{/* VEG TOGGLE */}
+<div className="flex items-center justify-between mt-3">
+
+  <span className="font-medium text-gray-700">
+    Veg Item
+  </span>
+
+  <button
+    type="button"
+    onClick={() =>
+      setNewItemState((prev) => ({
+        ...prev,
+        is_veg: !prev.is_veg,
+      }))
+    }
+    className={`
+      relative inline-flex
+      h-7 w-14
+      items-center
+      rounded-full
+      transition-colors duration-300
+      ${
+        newItemState.is_veg
+          ? "bg-green-500"
+          : "bg-red-400"
+      }
+    `}
+  >
+    <span
+      className={`
+        inline-block
+        h-5 w-5
+        transform
+        rounded-full
+        bg-white
+        transition-transform duration-300
+        shadow-md
+        ${
+          newItemState.is_veg
+            ? "translate-x-8"
+            : "translate-x-1"
+        }
+      `}
+    />
+  </button>
+</div>
+
+{/* HAS QUANTITY */}
+<div className="flex items-center justify-between mt-3">
+
+  <span className="font-medium text-gray-700">
+    Has Quantity
+  </span>
+
+  <button
+    type="button"
+    onClick={() =>
+      setNewItemState((prev) => ({
+        ...prev,
+        has_quantity:
+          !prev.has_quantity,
+        quantity:
+          prev.has_quantity ? "" : prev.quantity,
+      }))
+    }
+    className={`
+      relative inline-flex
+      h-7 w-14
+      items-center
+      rounded-full
+      transition-colors duration-300
+      ${
+        newItemState.has_quantity
+          ? "bg-orange-500"
+          : "bg-gray-300"
+      }
+    `}
+  >
+    <span
+      className={`
+        inline-block
+        h-5 w-5
+        transform
+        rounded-full
+        bg-white
+        transition-transform duration-300
+        shadow-md
+        ${
+          newItemState.has_quantity
+            ? "translate-x-8"
+            : "translate-x-1"
+        }
+      `}
+    />
+  </button>
+</div>
+
+{/* QUANTITY INPUT */}
+{newItemState.has_quantity && (
+  <input
+    value={newItemState.quantity || ""}
+    onChange={(e) =>
+      setNewItemState((prev) => ({
+        ...prev,
+        quantity: Number(
+          onlyDigits(e.target.value)
+        ),
+      }))
+    }
+    placeholder="Quantity"
+    className="w-full p-3 border rounded-xl mt-3"
+  />
+)}
+
+{/* ACTIVE STATUS */}
+<div className="flex items-center justify-between mt-3">
+
+  <span className="font-medium text-gray-700">
+    Active Status
+  </span>
+
+  <button
+    type="button"
+    onClick={() =>
+      setNewItemState((prev) => ({
+        ...prev,
+        is_active: !prev.is_active,
+      }))
+    }
+    className={`
+      relative inline-flex
+      h-7 w-14
+      items-center
+      rounded-full
+      transition-colors duration-300
+      ${
+        newItemState.is_active
+          ? "bg-orange-500"
+          : "bg-gray-300"
+      }
+    `}
+  >
+    <span
+      className={`
+        inline-block
+        h-5 w-5
+        transform
+        rounded-full
+        bg-white
+        transition-transform duration-300
+        shadow-md
+        ${
+          newItemState.is_active
+            ? "translate-x-8"
+            : "translate-x-1"
+        }
+      `}
+    />
+  </button>
+</div>
+
+            <div className="mt-2">
+              <label className="w-full border p-2 rounded-xl flex items-center justify-between cursor-pointer">
+                <span>{newItemState.image ? "Image selected" : "Upload photo"}</span>
+                <input type="file" accept="image/*" hidden 
+                onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                    if (newItemState.image) {
+                      URL.revokeObjectURL(newItemState.image);
+                    }
+
+                setNewItemState((s) => ({
+                  ...s,
+                  image: URL.createObjectURL(file), // preview
+                  file: file, // ✅ ACTUAL FILE
+                }));
+              }}
+              />
+              </label>
+              {newItemState.image && <img src={newItemState.image} alt="preview" className="mt-2 w-28 h-28 object-cover rounded" />}
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={handleAddMenu}
+                disabled={
+                  !!priceError || savingMenu
+                }                
+               className={`
+                px-4 py-2 rounded-xl text-white
+                ${
+                  priceError || savingMenu
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-orange-500"
+                }
+              `}
+              >
+                {
+                  savingMenu
+                    ? "Saving..."
+                    : "Save Item"
+                }
+              </button>
+              <button
+                onClick={() => {
+
+                  if (
+                    newItemState.image?.startsWith("blob:")
+                  ) {
+                    URL.revokeObjectURL(
+                      newItemState.image
+                    );
+                  }
+                    if (
+                      newItemState.image?.startsWith("blob:")
+                    ) {
+                      URL.revokeObjectURL(
+                        newItemState.image
+                      );
+                    }
+                  setNewItemState(emptyItem);
+
+                }}className="px-4 py-2 border rounded-xl">Reset</button>
+            </div>
+          </div>
+</div>
+  </div>
+  </div>
+)}
+
+
     </div>
     </>
   );

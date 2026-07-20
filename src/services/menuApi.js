@@ -19,7 +19,7 @@ export const getMerchantMenu = async (payload) => {
 export const addMerchantMenu = async (payload) => {
   const formData = new FormData();
 
-  formData.append("category", payload.category);
+  formData.append("category_id", payload.category);
   formData.append("menu_name", payload.menu_name);
   formData.append("menu_description", payload.menu_description);
   formData.append("is_veg", payload.is_veg ? "True" : "False");
@@ -40,14 +40,14 @@ formData.append(
 );
   formData.append("discounted_price", String(payload.discounted_price));
   formData.append("label", payload.label);
-  formData.append("user", String(payload.user));
+ // formData.append("user", String(payload.user));
   // file upload
   if (payload.menu_image) {
     formData.append("menu_image", payload.menu_image);
   }
 
   const res = await api.post(
-    "/api/v1/common/orders/add-menu-merchant/",
+    "/api/v1/common/merchant/add-menu-merchant/",
     formData,
   );
 
@@ -134,7 +134,7 @@ export const editOffer = async (payload) => {
 export const getMenuInsights = async (payload) => {
   const res = await api.post(
     "/api/v1/common/merchant/merchant-menu-insights/",
-    payload
+  
   );
 
   return res.data;

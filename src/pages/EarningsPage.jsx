@@ -157,7 +157,7 @@ setHistoryFetching(true);
 
   try {
     const res = await getOrdersHistory({
-      user: 88,        // user: userId,        
+      //user: 88,        // user: userId,        
       
   //     const userId =
   // localStorage.getItem("user_id");
@@ -201,7 +201,7 @@ setInsightsFetching(true);
 
   try {
     const res = await getMerchantInsights({
-      user: 88,     //user: userId
+      // user: 88,     //user: userId
     });
 
     console.log("Insights API:", res);
@@ -239,7 +239,7 @@ setPayoutFetching(true);
 
   try {
     // ✅ 1. CALL API (THIS WAS MISSING)
-    const pendingRes = await getPendingPayouts({ user: 88 });  //user: userId
+    const pendingRes = await getPendingPayouts({  });  //user: userId
 
     console.log("Pending API:", pendingRes);
 
@@ -251,7 +251,7 @@ setPayoutFetching(true);
     setLifetimeSales(pendingData?.["lifetime sales"] || 0);
 
     // ✅ 2. CALL HISTORY API
-    const historyRes = await getPayoutHistory({ user: 88 });   //user: userId
+    const historyRes = await getPayoutHistory({  });   //user: userId
 
     console.log("History API:", historyRes);
 
@@ -311,7 +311,7 @@ const getFilterPayload = () => {
     const payload = getFilterPayload();
 
     const res = await getEarningsOverview({
-      user: 88,    //user: userId
+      // user: 88,    //user: userId
       ...payload,
     });
 
@@ -484,7 +484,7 @@ useEffect(() => {
 
     const res =
       await requestMerchantPayout({
-        user: 88,    //user: userId
+        // user: 88,    //user: userId
         send_request: true,
       });
 
@@ -646,7 +646,7 @@ useEffect(() => {
                 </>
               )}
 
-              <button
+              {/* <button
                 onClick={() =>
                     exportOrdersCSV(
                       overviewData?.revenue_trend || [],
@@ -657,7 +657,7 @@ useEffect(() => {
                 className="ml-auto flex items-center px-3 py-2 bg-orange-500 text-white rounded-xl"
               >
                 <Download size={16} className="mr-1" /> Export CSV
-              </button>
+              </button> */}
             </div>
 
             {/* summary cards */}
@@ -868,7 +868,7 @@ useEffect(() => {
                 <option value="date">Sort by: Date</option>
                 <option value="amount">Sort by: Amount</option>
               </select>
-
+{/* 
               <button
 
                 onClick={() => {
@@ -922,7 +922,7 @@ useEffect(() => {
                     : "Export"
                 }
 
-              </button>
+              </button> */}
                           </div>
 
           <div className="text-sm text-gray-600">
@@ -994,7 +994,7 @@ useEffect(() => {
                 disabled={insightsFetching}
                 value={insightsCustomDate} onChange={(e)=>setInsightsCustomDate(e.target.value)} className="p-2 border rounded" />
               )}
-              <button onClick={() =>
+              {/* <button onClick={() =>
                 exportOrdersCSV(
                   insightsData?.hourly_orders || [],
                   "insights.csv"
@@ -1017,7 +1017,7 @@ useEffect(() => {
                 exportLoading
                   ? "Exporting..."
                   : "Export"
-              }</button>
+              }</button> */}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
