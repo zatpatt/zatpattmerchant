@@ -145,6 +145,7 @@ export const addMerchantDetails = async (payload) => {
   appendIfExists("upi_id", payload.upi_id);
   appendIfExists("estimated_delivery_time", payload.estimated_delivery_time);
   appendIfExists("minimum_order_amount", payload.minimum_order_amount);
+  appendIfExists("approx_cost_for_two", payload.approx_cost_for_two);
 
   // Files
   if (payload.profile_photo instanceof File) {
@@ -264,6 +265,11 @@ export const editMerchantProfile = async (payload) => {
     "minimum_order_amount",
     payload.minimum_order_amount
   );
+
+  appendIfExists(
+  "approx_cost_for_two",
+  payload.approx_cost_for_two
+);
 
   appendIfExists(
     "estimated_delivery_time",

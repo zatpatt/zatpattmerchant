@@ -1,5 +1,4 @@
 // src/pages/ProfilePage.jsx
-
 import React, { useState, useEffect } from "react";
 import PageHeader from "../components/PageHeader";
 import { ArrowLeft } from "lucide-react";
@@ -74,8 +73,6 @@ export default function ProfilePage() {
   useState(false);
 
   const handleRequestProfileEdit = async () => {
-
-    console.log("REQUEST EDIT CLICKED");
 
   if (requestLoading) return;
 
@@ -155,6 +152,11 @@ export default function ProfilePage() {
         gst: profileFrom.gst || "",
         // online: (localStorage.getItem(ONLINE_STATUS_KEY) || (profileFrom.online === false ? "false" : "true")) === "true",
         deliveryRadius: profileFrom.deliveryRadius ?? 3,
+        estimated_delivery_time:
+        profileFrom.estimated_delivery_time || "",
+
+        approx_cost_for_two:
+        profileFrom.approx_cost_for_two || "",
         // etaMins: profileFrom.etaMins ?? 30,
         minOrder: profileFrom.minOrder ?? 50,
         paymentMethods: {
@@ -202,7 +204,7 @@ export default function ProfilePage() {
 
 const [isProfileExists, setIsProfileExists] = useState(false);
 
-const [loading, setLoading] = useState(true);
+const [loading, setLoading] = useState(false);
 
 const [kycVerified, setKycVerified] =
   useState(true);
@@ -211,12 +213,6 @@ const fetchProfileFromAPI = async () => {
 
   if (!USER_ID) return;
 
-//   if (!USER_ID) {
-//   setLoading(false);
-//   toast.error("User not found");
-//   return;
-// }
-//   //if (loading) return;
 
   try {
 
@@ -249,17 +245,11 @@ const fetchProfileFromAPI = async () => {
       );
 
       setEditRequested(
-        data.is_requested || false
+        data.edit_requested || false
       );
 
-      console.log("API RESPONSE", data);
-console.log("is_requested", data.is_requested);
-
-      console.log("kyc_status", data.kyc_status);
-console.log("kycVerified", !!data.kyc_status);
-
       setKycVerified(
-        !!data.kyc_status
+        data.kyc_status === true
       );
 
     setIsProfileExists(
@@ -372,6 +362,12 @@ console.log("kycVerified", !!data.kyc_status);
         // etaMins:
         //   data.estimated_delivery_time || 30,
 
+        estimated_delivery_time:
+          data.estimated_delivery_time || "",
+
+        approx_cost_for_two:
+          data.approx_cost_for_two || "",
+
         minOrder:
           data.minimum_order_amount || 50,
 
@@ -444,13 +440,12 @@ console.log("kycVerified", !!data.kyc_status);
 
   } catch (error) {
 
-  console.log(error);
+    
+    setIsProfileExists(false);
 
-  toast.error(
-    "Failed to load profile"
-  );
+    console.log(error);
 
-} finally {
+  } finally {
 
     setLoading(false);
 
@@ -477,6 +472,10 @@ const USER_ID =
 // let hours = parseInt(parts[0]);
 // const minutes = parts[1];
 
+const isProfileLocked =
+  isProfileExists &&
+  !kycVerified;
+
 
 const [canEdit, setCanEdit] =
   useState(false);
@@ -484,21 +483,15 @@ const [canEdit, setCanEdit] =
 const [editRequested, setEditRequested] =
   useState(false);
 
-  const isProfileLocked =
-  loading ||
-  (isProfileExists && !canEdit);
+  // const isProfileLocked =
+  // loading ||
+  // (isProfileExists && !canEdit);
 
-
+  
   const disableRequestEdit =
   !kycVerified ||
   editRequested ||
   requestLoading;
-
-  console.log({
-  kycVerified,
-  editRequested,
-  requestLoading
-});
 
 const getButtonLabel = () => {
 
@@ -523,13 +516,6 @@ const getButtonLabel = () => {
 
 const handleMainButton = async () => {
 
-  console.log({
-    isProfileExists,
-    canEdit,
-    editRequested,
-    kycVerified
-  });
-
   if (!isProfileExists) {
     await handleSave();
     return;
@@ -547,9 +533,9 @@ const handleMainButton = async () => {
 
   if (!editRequested) {
     await handleRequestProfileEdit();
-    return;
   }
-};
+};  
+
 
 const REGEX = {
   MOBILE: /^[6-9][0-9]{9}$/,
@@ -1323,6 +1309,11 @@ const handleSave = async () => {
 
     setSaving(true);
 
+    const totalMinutes = Number(profile.estimated_delivery_time || 0);
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
     const payload = {
       user: USER_ID,
 
@@ -1408,6 +1399,11 @@ const handleSave = async () => {
       // latitude:
       //   profile.latitude,
 
+       estimated_delivery_time: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`,
+
+      approx_cost_for_two:
+        profile.approx_cost_for_two,
+
       servicable_radius_km:
         profile.deliveryRadius,
 
@@ -1489,18 +1485,16 @@ const handleSave = async () => {
       // ✅ REFRESH PROFILE
       await fetchProfileFromAPI();
 
-const updatedCompletion =
-  Number(
-    localStorage.getItem(
-      "profile_completion"
-    ) || 0
-  );
+        const updatedCompletion =
+        Number(
+          localStorage.getItem(
+            "profile_completion"
+          ) || 0
+        );
 
-if (updatedCompletion >= 100) {
-  navigate("/dashboard", {
-    replace: true,
-  });
-}
+        if (updatedCompletion === 100) {
+          navigate("/dashboard");
+        }
 
 
     } else {
@@ -1804,6 +1798,31 @@ const [completionScore, setCompletionScore] =
 
 const [errors, setErrors] = useState({});
 
+const deliveryMinutes =
+  profile.estimated_delivery_time
+    ? Number(profile.estimated_delivery_time)
+    : null;
+
+const businessErrors = {
+  minOrder:
+    profile.minOrder !== "" &&
+    Number(profile.minOrder) < 50
+      ? "Below ₹50 not allowed"
+      : "",
+
+  approxCostForTwo:
+    profile.approx_cost_for_two !== "" &&
+    Number(profile.approx_cost_for_two) < 1
+      ? "Minimum ₹1 required"
+      : "",
+
+  deliveryTime:
+    profile.estimated_delivery_time !== "" &&
+    (deliveryMinutes < 10 || deliveryMinutes > 50)
+      ? "Enter value between 10 and 50 minutes"
+      : "",
+};
+
 const validateField = (name, value) => {
   switch (name) {
     case "storeName":
@@ -1953,6 +1972,7 @@ if (loading) {
 }
 
 
+
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col">
       <PageHeader title="Profile" />
@@ -2013,6 +2033,7 @@ if (loading) {
     KYC Approved. Request edit permission to modify profile details.
   </div>
 )}
+
 
             {/* <div className="mt-4">
               <div className="text-sm text-gray-500">Average Rating</div>
@@ -2102,9 +2123,10 @@ if (loading) {
           ✓ Location Selected
         </div>
 
-        <div className="mt-2 text-sm">
+        <div className="mt-2 text-sm text-gray-800 leading-6 break-words">
           {profile.address}
         </div>
+
 
         <div className="text-xs text-gray-500 mt-1">
           {profile.area},
@@ -2810,25 +2832,75 @@ if (loading) {
             </label> */}
 
             <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Minimum Order Amount (₹)</span>
-              <input
-                type="number"
-                min={50}
-                step={1}
-                value={profile.minOrder}
-                 disabled={
-    saving ||
-    isProfileLocked
-  }
-                onChange={(e) =>
-                  update(
-                    "minOrder",
-                    Math.max(50, Number(e.target.value))
-                  )
-                }
-                className="mt-1 p-2 border rounded-xl"
-              />
-            </label>
+  <span className="text-sm text-gray-600">
+    Estimated Delivery Time (Minutes)
+  </span>
+  <input
+    type="text"
+    inputMode="numeric"
+    maxLength={2}
+    placeholder="Enter between 10 mins to 50 mins"
+    className="mt-1 p-2 border rounded-xl"
+    value={profile.estimated_delivery_time || ""}
+    disabled={saving || isProfileLocked}
+    onChange={(e) => {
+      const value = e.target.value.replace(/\D/g, "");
+      if (value.length > 2) return;
+      update("estimated_delivery_time", value);
+    }}
+  />
+  {businessErrors.deliveryTime && (
+    <p className="text-red-500 text-xs mt-1">
+      {businessErrors.deliveryTime}
+    </p>
+  )}
+</label>
+
+<label className="flex flex-col">
+  <span className="text-sm text-gray-600">Minimum Order Amount (₹)</span>
+  <input
+    type="text"
+    inputMode="numeric"
+    value={profile.minOrder || ""}
+    disabled={saving || isProfileLocked}
+    onChange={(e) => {
+      const value = e.target.value.replace(/\D/g, "");
+      update(
+        "minOrder",
+        value === "" ? "" : String(Number(value))
+      );
+    }}
+    className={`mt-1 p-2 border rounded-xl ${
+      businessErrors.minOrder ? "border-red-500" : ""
+    }`}
+  />
+  {businessErrors.minOrder && (
+    <p className="text-red-500 text-xs mt-1">
+      {businessErrors.minOrder}
+    </p>
+  )}
+</label>
+
+<label className="flex flex-col">
+  <span className="text-sm text-gray-600">
+    Approx Cost For Two (₹)
+  </span>
+  <input
+    type="text"
+    inputMode="numeric"
+    value={profile.approx_cost_for_two || ""}
+    disabled={saving || isProfileLocked}
+    onChange={(e) => {
+      const value = e.target.value.replace(/\D/g, "");
+      update(
+        "approx_cost_for_two",
+        value === "" ? "" : String(Number(value))
+      );
+    }}
+    className="mt-1 p-2 border rounded-xl"
+  />
+</label>
+
 
               {/* Commission value */}
               <label className="flex flex-col">
@@ -3189,8 +3261,6 @@ if (loading) {
                   : profile.documents.license
               } alt="lic" className="mt-2 w-full h-24 object-cover rounded" />}
             </div> */}
-
-            
             <label className="flex flex-col">
   <span className="text-sm text-gray-600">
     GST Certificate
@@ -3518,6 +3588,7 @@ if (loading) {
   />
 )}
 </div> */}
+
           </div>
         </section>
 
@@ -3549,10 +3620,11 @@ if (loading) {
 
     handleMainButton();
   }}
-  disabled={
+  disabled={!kycVerified}
+  disabled={disableRequestEdit}
+   disabled={
     saving ||
-    (!canSave && !isProfileExists) ||
-    (!kycVerified)
+    isProfileLocked
   }
   className={`
     px-5 py-2 rounded-xl text-white
@@ -3618,6 +3690,7 @@ if (loading) {
 >
   Chat with Support
 </button>
+
 
       <button
         className="
